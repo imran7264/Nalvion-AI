@@ -3,6 +3,7 @@ const cors = require("cors");
 require("dotenv").config();
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 
 const app = express();
@@ -17,6 +18,11 @@ app.use("/api/auth", authRoutes);
 app.use(
   "/api/transactions",
   transactionRoutes
+);
+
+app.use(
+  "/api/dashboard",
+  dashboardRoutes
 );
 
 app.get("/", (req, res) => {

@@ -54,7 +54,7 @@ const Sidebar = ({ mobileOpen, setMobileOpen }) => {
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 flex w-64
+          fixed inset-y-0 left-0 z-50 flex w-64 
           flex-col border-r border-slate-200 bg-white
           transition-transform duration-300
           dark:border-slate-800 dark:bg-slate-950

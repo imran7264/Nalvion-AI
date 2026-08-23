@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
-import Transactions from "./pages/Transactions";
+import Transaction from "./pages/Transaction";
 
 import AppLayout from "./components/layout/AppLayout";
 
@@ -46,7 +46,7 @@ const App = () => {
         >
           <Route path="/dashboard" element={<Dashboard />} />
 
-          <Route path="/transactions" element={<Transactions />} />
+          <Route path="/transactions" element={<Transaction />} />
 
           <Route path="/budgets" element={<div>Budgets coming soon...</div>} />
 

@@ -4,83 +4,143 @@ const getDashboardOverview = async (req, res) => {
   try {
     const userId = req.user.userId;
 
+    // Get current date
+    const now = new Date();
+
+    // Start of current month
+    const startOfCurrentMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1
+    );
+
+    // Start of 6 months ago
+    const startOfSixMonthsAgo = new Date(
+      now.getFullYear(),
+      now.getMonth() - 5,
+      1
+    );
+
+    // Fetch user's transactions
     const transactions = await Transaction.find({
       user: userId,
     }).sort({ date: -1 });
 
-    // =========================================
+    // -----------------------------------------
     // TOTAL INCOME / EXPENSES
-    // =========================================
+    // -----------------------------------------
 
     let totalIncome = 0;
     let totalExpenses = 0;
 
     transactions.forEach((transaction) => {
       if (transaction.type === "income") {
-        totalIncome += Number(transaction.amount);
+        totalIncome += transaction.amount;
       } else {
-        totalExpenses += Number(transaction.amount);
+        totalExpenses += transaction.amount;
       }
     });
 
     const balance = totalIncome - totalExpenses;
 
-    // =========================================
+    // -----------------------------------------
     // CURRENT MONTH
-    // =========================================
-
-    const now = new Date();
-
-    const currentMonthTransactions =
-      transactions.filter((transaction) => {
-        const transactionDate = new Date(
-          transaction.date
-        );
-
-        return (
-          transactionDate.getMonth() === now.getMonth() &&
-          transactionDate.getFullYear() ===
-            now.getFullYear()
-        );
-      });
+    // -----------------------------------------
 
     let monthlyIncome = 0;
     let monthlyExpenses = 0;
 
-    currentMonthTransactions.forEach(
-      (transaction) => {
+    transactions.forEach((transaction) => {
+      const transactionDate = new Date(
+        transaction.date
+      );
+
+      if (transactionDate >= startOfCurrentMonth) {
         if (transaction.type === "income") {
-          monthlyIncome += Number(transaction.amount);
+          monthlyIncome += transaction.amount;
         } else {
-          monthlyExpenses += Number(
-            transaction.amount
-          );
+          monthlyExpenses += transaction.amount;
         }
       }
+    });
+
+    // -----------------------------------------
+    // MONTHLY SPENDING - LAST 6 MONTHS
+    // -----------------------------------------
+
+    const monthlySpendingMap = {};
+
+    for (let i = 0; i < 6; i++) {
+      const date = new Date(
+        now.getFullYear(),
+        now.getMonth() - (5 - i),
+        1
+      );
+
+      const key = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+      monthlySpendingMap[key] = {
+        month: date.toLocaleDateString("en-IN", {
+          month: "short",
+        }),
+        amount: 0,
+      };
+    }
+
+    transactions.forEach((transaction) => {
+      if (transaction.type !== "expense") {
+        return;
+      }
+
+      const transactionDate = new Date(
+        transaction.date
+      );
+
+      if (transactionDate < startOfSixMonthsAgo) {
+        return;
+      }
+
+      const key = `${transactionDate.getFullYear()}-${String(
+        transactionDate.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+      if (monthlySpendingMap[key]) {
+        monthlySpendingMap[key].amount +=
+          transaction.amount;
+      }
+    });
+
+    const monthlySpending = Object.values(
+      monthlySpendingMap
     );
 
-    // =========================================
-    // CATEGORY SPENDING
-    // =========================================
+    // -----------------------------------------
+    // CATEGORY SPENDING - CURRENT MONTH
+    // -----------------------------------------
 
     const categoryMap = {};
 
-    currentMonthTransactions
-      .filter(
-        (transaction) =>
-          transaction.type === "expense"
-      )
-      .forEach((transaction) => {
-        const category = transaction.category;
+    transactions.forEach((transaction) => {
+      const transactionDate = new Date(
+        transaction.date
+      );
 
-        if (!categoryMap[category]) {
-          categoryMap[category] = 0;
-        }
+      if (
+        transaction.type !== "expense" ||
+        transactionDate < startOfCurrentMonth
+      ) {
+        return;
+      }
 
-        categoryMap[category] += Number(
-          transaction.amount
-        );
-      });
+      if (!categoryMap[transaction.category]) {
+        categoryMap[transaction.category] = 0;
+      }
+
+      categoryMap[transaction.category] +=
+        transaction.amount;
+    });
 
     const categorySpending = Object.entries(
       categoryMap
@@ -91,74 +151,30 @@ const getDashboardOverview = async (req, res) => {
       }))
       .sort((a, b) => b.amount - a.amount);
 
-    // =========================================
-    // LAST 6 MONTHS SPENDING
-    // =========================================
-
-    const monthlySpending = [];
-
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(
-        now.getFullYear(),
-        now.getMonth() - i,
-        1
-      );
-
-      const year = date.getFullYear();
-      const month = date.getMonth();
-
-      const amount = transactions
-        .filter((transaction) => {
-          if (transaction.type !== "expense") {
-            return false;
-          }
-
-          const transactionDate = new Date(
-            transaction.date
-          );
-
-          return (
-            transactionDate.getFullYear() === year &&
-            transactionDate.getMonth() === month
-          );
-        })
-        .reduce(
-          (total, transaction) =>
-            total + Number(transaction.amount),
-          0
-        );
-
-      monthlySpending.push({
-        month: date.toLocaleString("en-IN", {
-          month: "short",
-        }),
-        amount,
-      });
-    }
-
-    // =========================================
+    // -----------------------------------------
     // RECENT TRANSACTIONS
-    // =========================================
+    // -----------------------------------------
 
     const recentTransactions =
       transactions.slice(0, 5);
 
-    // =========================================
+    // -----------------------------------------
     // RESPONSE
-    // =========================================
+    // -----------------------------------------
 
     res.status(200).json({
       summary: {
+        balance,
         totalIncome,
         totalExpenses,
-        balance,
+
         monthlyIncome,
         monthlyExpenses,
       },
 
-      categorySpending,
-
       monthlySpending,
+
+      categorySpending,
 
       recentTransactions,
     });
@@ -169,8 +185,7 @@ const getDashboardOverview = async (req, res) => {
     );
 
     res.status(500).json({
-      message:
-        "Unable to load dashboard overview.",
+      message: "Failed to load dashboard.",
     });
   }
 };

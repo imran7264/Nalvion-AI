@@ -117,6 +117,18 @@ function Dashboard() {
         100
       : 0;
 
+    //   const monthlySavings = summary.monthlyIncome - summary.monthlyExpenses;
+
+    //   const previousMonthSavings =
+    //     summary.previousMonthIncome - summary.previousMonthExpenses;
+
+    //   const savingsChange =
+    //     previousMonthSavings !== 0
+    //       ? ((monthlySavings - previousMonthSavings) /
+    //           Math.abs(previousMonthSavings)) *
+    //         100
+    //       : 0;
+
   return (
     <div className="min-h-full bg-[#070A18] p-5 text-[#F8FAFC] sm:p-6 lg:p-8">
 
@@ -171,33 +183,33 @@ function Dashboard() {
           iconClass="bg-[#211A52] text-[#A78BFA]"
           footer={
             <span className="font-medium text-[#00D6A3]">
-              ↗ 8.4% this month
+              Current available balance
             </span>
           }
         />
 
         {/* Income */}
         <SummaryCard
-          title="Income"
+          title="Total Income"
           amount={formatCurrency(summary.totalIncome)}
           icon="↙"
           iconClass="bg-[#063B3A] text-[#00D6A3]"
           footer={
             <span className="text-[#64748B]">
-              This month
+               All recorded income
             </span>
           }
         />
 
         {/* Expenses */}
         <SummaryCard
-          title="Expenses"
+          title="Total expenses"
           amount={formatCurrency(summary.totalExpenses)}
           icon="↗"
           iconClass="bg-[#3D1833] text-[#F43F5E]"
           footer={
             <span className="text-[#64748B]">
-              This month
+             All recorded expenses
             </span>
           }
         />

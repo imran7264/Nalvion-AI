@@ -68,53 +68,48 @@ const getDashboardOverview = async (req, res) => {
     // MONTHLY SPENDING - LAST 6 MONTHS
     // -----------------------------------------
 
-    const monthlySpendingMap = {};
+    const monthlyDataMap = {};
 
     for (let i = 0; i < 6; i++) {
-      const date = new Date(
-        now.getFullYear(),
-        now.getMonth() - (5 - i),
-        1
-      );
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
 
-      const key = `${date.getFullYear()}-${String(
-        date.getMonth() + 1
-      ).padStart(2, "0")}`;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+        2,
+        "0",
+      )}`;
 
-      monthlySpendingMap[key] = {
+      monthlyDataMap[key] = {
         month: date.toLocaleDateString("en-IN", {
           month: "short",
         }),
-        amount: 0,
+        income: 0,
+        expenses: 0,
       };
     }
 
     transactions.forEach((transaction) => {
-      if (transaction.type !== "expense") {
-        return;
-      }
-
-      const transactionDate = new Date(
-        transaction.date
-      );
+      const transactionDate = new Date(transaction.date);
 
       if (transactionDate < startOfSixMonthsAgo) {
         return;
       }
 
       const key = `${transactionDate.getFullYear()}-${String(
-        transactionDate.getMonth() + 1
+        transactionDate.getMonth() + 1,
       ).padStart(2, "0")}`;
 
-      if (monthlySpendingMap[key]) {
-        monthlySpendingMap[key].amount +=
-          transaction.amount;
+      if (!monthlyDataMap[key]) {
+        return;
+      }
+
+      if (transaction.type === "income") {
+        monthlyDataMap[key].income += transaction.amount;
+      } else {
+        monthlyDataMap[key].expenses += transaction.amount;
       }
     });
 
-    const monthlySpending = Object.values(
-      monthlySpendingMap
-    );
+    const monthlySpending = Object.values(monthlyDataMap);
 
     // -----------------------------------------
     // CATEGORY SPENDING - CURRENT MONTH

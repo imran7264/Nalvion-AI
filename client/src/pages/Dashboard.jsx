@@ -107,6 +107,14 @@ function Dashboard() {
     recentTransactions = [],
   } = dashboard;
 
+  const topCategory = categorySpending[0];
+
+  const aiInsight = topCategory
+    ? `Your highest spending category this month is ${topCategory.category}, with ${formatCurrency(
+        topCategory.amount,
+      )} spent so far.`
+    : "Add a few transactions and Nalvion will start analyzing your spending.";
+
   // =========================
   // Savings rate
   // =========================
@@ -131,7 +139,6 @@ function Dashboard() {
 
   return (
     <div className="min-h-full bg-[#070A18] p-5 text-[#F8FAFC] sm:p-6 lg:p-8">
-
       {/* =========================================
           PAGE HEADER
       ========================================= */}
@@ -174,7 +181,6 @@ function Dashboard() {
           SUMMARY CARDS
       ========================================= */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
         {/* Balance */}
         <SummaryCard
           title="Total balance"
@@ -194,11 +200,7 @@ function Dashboard() {
           amount={formatCurrency(summary.totalIncome)}
           icon="↙"
           iconClass="bg-[#063B3A] text-[#00D6A3]"
-          footer={
-            <span className="text-[#64748B]">
-               All recorded income
-            </span>
-          }
+          footer={<span className="text-[#64748B]">All recorded income</span>}
         />
 
         {/* Expenses */}
@@ -207,11 +209,7 @@ function Dashboard() {
           amount={formatCurrency(summary.totalExpenses)}
           icon="↗"
           iconClass="bg-[#3D1833] text-[#F43F5E]"
-          footer={
-            <span className="text-[#64748B]">
-             All recorded expenses
-            </span>
-          }
+          footer={<span className="text-[#64748B]">All recorded expenses</span>}
         />
 
         {/* Savings */}
@@ -221,9 +219,7 @@ function Dashboard() {
           icon="◎"
           iconClass="bg-[#3D3011] text-[#F59E0B]"
           footer={
-            <span className="text-[#94A3B8]">
-              Based on current income
-            </span>
+            <span className="text-[#94A3B8]">Based on current income</span>
           }
         />
       </div>
@@ -232,7 +228,6 @@ function Dashboard() {
           MAIN CONTENT
       ========================================= */}
       <div className="grid gap-6 xl:grid-cols-3">
-
         {/* =======================================
             SPENDING OVERVIEW
         ======================================= */}
@@ -247,7 +242,6 @@ function Dashboard() {
           "
         >
           <div className="mb-6 flex items-start justify-between gap-4">
-
             <div>
               <h2 className="text-xl font-semibold text-[#F8FAFC]">
                 Spending overview
@@ -257,6 +251,7 @@ function Dashboard() {
                 Your spending over the last 6 months
               </p>
             </div>
+            
 
             <select
               className="
@@ -273,28 +268,30 @@ function Dashboard() {
               "
               defaultValue="6"
             >
-              <option value="6">
-                Last 6 months
-              </option>
+              <option value="6">Last 6 months</option>
 
-              <option value="3">
-                Last 3 months
-              </option>
+              <option value="3">Last 3 months</option>
 
-              <option value="12">
-                Last 12 months
-              </option>
+              <option value="12">Last 12 months</option>
             </select>
           </div>
+          <div className="mb-4 flex items-center gap-5">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#00D6A3]" />
+                  <span className="text-xs text-[#94A3B8]">Income</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />
+                  <span className="text-xs text-[#94A3B8]">Expenses</span>
+                </div>
+              </div>
 
           {chartData.length === 0 ? (
             <EmptyChart />
           ) : (
             <div className="h-72 w-full">
-              <ResponsiveContainer
-                width="100%"
-                height="100%"
-              >
+              <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={chartData}
                   margin={{
@@ -307,7 +304,7 @@ function Dashboard() {
                   {/* Purple gradient */}
                   <defs>
                     <linearGradient
-                      id="nalvionPurple"
+                      id="nalvionIncome"
                       x1="0"
                       y1="0"
                       x2="0"
@@ -315,15 +312,11 @@ function Dashboard() {
                     >
                       <stop
                         offset="0%"
-                        stopColor="#8B5CF6"
-                        stopOpacity={0.4}
+                        stopColor="#00D6A3"
+                        stopOpacity={0.25}
                       />
 
-                      <stop
-                        offset="100%"
-                        stopColor="#8B5CF6"
-                        stopOpacity={0}
-                      />
+                      <stop offset="100%" stopColor="#00D6A3" stopOpacity={0} />
                     </linearGradient>
                   </defs>
 
@@ -353,25 +346,31 @@ function Dashboard() {
                       fill: "#64748B",
                       fontSize: 11,
                     }}
-                    tickFormatter={(value) =>
-                      `₹${value}`
-                    }
+                    tickFormatter={(value) => {
+                      if (value >= 100000) {
+                        return `₹${(value / 100000).toFixed(1)}L`;
+                      }
+
+                      if (value >= 1000) {
+                        return `₹${(value / 1000).toFixed(0)}K`;
+                      }
+
+                      return `₹${value}`;
+                    }}
                   />
 
                   {/* Tooltip */}
                   <Tooltip
-                    formatter={(value) => [
+                    formatter={(value, name) => [
                       formatCurrency(value),
-                      "Spending",
+                      name === "Income" ? "Income" : "Expenses",
                     ]}
                     contentStyle={{
                       backgroundColor: "#0F172A",
-                      border:
-                        "1px solid #293754",
+                      border: "1px solid #293754",
                       borderRadius: "12px",
                       color: "#F8FAFC",
-                      boxShadow:
-                        "0 10px 30px rgba(0,0,0,0.35)",
+                      boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
                     }}
                     labelStyle={{
                       color: "#94A3B8",
@@ -386,16 +385,28 @@ function Dashboard() {
                   {/* Area */}
                   <Area
                     type="monotone"
-                    dataKey="amount"
+                    dataKey="income"
+                    name="Income"
+                    stroke="#00D6A3"
+                    strokeWidth={3}
+                    fill="url(#nalvionIncome)"
+                    dot={false}
+                    activeDot={{
+                      r: 6,
+                      fill: "#00D6A3",
+                      stroke: "#FFFFFF",
+                      strokeWidth: 2,
+                    }}
+                  />
+
+                  <Area
+                    type="monotone"
+                    dataKey="expenses"
+                    name="Expenses"
                     stroke="#8B5CF6"
                     strokeWidth={3}
                     fill="url(#nalvionPurple)"
-                    dot={{
-                      r: 4,
-                      fill: "#8B5CF6",
-                      stroke: "#0F172A",
-                      strokeWidth: 2,
-                    }}
+                    dot={false}
                     activeDot={{
                       r: 6,
                       fill: "#A855F7",
@@ -454,7 +465,6 @@ function Dashboard() {
           />
 
           <div className="relative flex h-full flex-col">
-
             <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-xl text-white backdrop-blur-sm">
               ✦
             </div>
@@ -467,11 +477,8 @@ function Dashboard() {
               Your spending insight
             </h2>
 
-            <p className="mt-5 text-center text-sm leading-7 text-purple-100">
-              You're spending more on dining this
-              month than your usual average. Reducing
-              it by ₹1,500 could help you reach your
-              savings goal faster.
+            <p className="mt-5 text-center text-md leading-7 text-purple-200">
+              {aiInsight}
             </p>
 
             <button
@@ -498,7 +505,6 @@ function Dashboard() {
           TOP SPENDING
       ========================================= */}
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
-
         <div
           className="
             rounded-2xl
@@ -525,33 +531,27 @@ function Dashboard() {
             </p>
           ) : (
             <div className="space-y-5">
-              {categorySpending
-                .slice(0, 5)
-                .map((item) => {
-                  const percentage =
-                    summary.monthlyExpenses > 0
-                      ? (item.amount /
-                          summary.monthlyExpenses) *
-                        100
-                      : 0;
+              {categorySpending.slice(0, 5).map((item) => {
+                const percentage =
+                  summary.monthlyExpenses > 0
+                    ? (item.amount / summary.monthlyExpenses) * 100
+                    : 0;
 
-                  return (
-                    <div key={item.category}>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-[#CBD5E1]">
-                          {item.category}
-                        </span>
+                return (
+                  <div key={item.category}>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-[#CBD5E1]">
+                        {item.category}
+                      </span>
 
-                        <span className="text-sm font-semibold text-[#F8FAFC]">
-                          {formatCurrency(
-                            item.amount
-                          )}
-                        </span>
-                      </div>
+                      <span className="text-sm font-semibold text-[#F8FAFC]">
+                        {formatCurrency(item.amount)}
+                      </span>
+                    </div>
 
-                      <div className="h-2 overflow-hidden rounded-full bg-[#1E293B]">
-                        <div
-                          className="
+                    <div className="h-2 overflow-hidden rounded-full bg-[#1E293B]">
+                      <div
+                        className="
                             h-full
                             rounded-full
                             bg-gradient-to-r
@@ -559,17 +559,14 @@ function Dashboard() {
                             to-[#A855F7]
                             transition-all
                           "
-                          style={{
-                            width: `${Math.min(
-                              percentage,
-                              100
-                            )}%`,
-                          }}
-                        />
-                      </div>
+                        style={{
+                          width: `${Math.min(percentage, 100)}%`,
+                        }}
+                      />
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -622,21 +619,18 @@ function Dashboard() {
               </p>
 
               <p className="mt-1 text-xs text-[#64748B]">
-                Add your first transaction to get
-                started.
+                Add your first transaction to get started.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-[#1E293B]">
-              {recentTransactions.map(
-                (transaction) => {
-                  const isIncome =
-                    transaction.type === "income";
+              {recentTransactions.map((transaction) => {
+                const isIncome = transaction.type === "income";
 
-                  return (
-                    <div
-                      key={transaction._id}
-                      className="
+                return (
+                  <div
+                    key={transaction._id}
+                    className="
                         flex
                         items-center
                         justify-between
@@ -646,12 +640,11 @@ function Dashboard() {
                         hover:bg-[#131D33]
                         sm:px-6
                       "
-                    >
-                      {/* Left */}
-                      <div className="flex min-w-0 items-center gap-3">
-
-                        <div
-                          className={`
+                  >
+                    {/* Left */}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div
+                        className={`
                             flex h-10 w-10
                             shrink-0
                             items-center justify-center
@@ -663,53 +656,42 @@ function Dashboard() {
                                 : "bg-[#3D1833] text-[#F43F5E]"
                             }
                           `}
-                        >
-                          {isIncome ? "↙" : "↗"}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-[#F8FAFC]">
-                            {transaction.category}
-                          </p>
-
-                          <p className="truncate text-xs text-[#64748B]">
-                            {transaction.description ||
-                              formatPaymentMethod(
-                                transaction.paymentMethod
-                              )}
-                          </p>
-                        </div>
+                      >
+                        {isIncome ? "↙" : "↗"}
                       </div>
 
-                      {/* Right */}
-                      <div className="shrink-0 text-right">
-                        <p
-                          className={`
-                            text-sm
-                            font-semibold
-                            ${
-                              isIncome
-                                ? "text-[#00D6A3]"
-                                : "text-[#F8FAFC]"
-                            }
-                          `}
-                        >
-                          {isIncome ? "+" : "-"}
-                          {formatCurrency(
-                            transaction.amount
-                          )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#F8FAFC]">
+                          {transaction.category}
                         </p>
 
-                        <p className="mt-1 text-xs text-[#64748B]">
-                          {formatDate(
-                            transaction.date
-                          )}
+                        <p className="truncate text-xs text-[#64748B]">
+                          {transaction.description ||
+                            formatPaymentMethod(transaction.paymentMethod)}
                         </p>
                       </div>
                     </div>
-                  );
-                }
-              )}
+
+                    {/* Right */}
+                    <div className="shrink-0 text-right">
+                      <p
+                        className={`
+                            text-sm
+                            font-semibold
+                            ${isIncome ? "text-[#00D6A3]" : "text-[#F8FAFC]"}
+                          `}
+                      >
+                        {isIncome ? "+" : "-"}
+                        {formatCurrency(transaction.amount)}
+                      </p>
+
+                      <p className="mt-1 text-xs text-[#64748B]">
+                        {formatDate(transaction.date)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

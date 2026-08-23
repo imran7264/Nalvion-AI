@@ -257,6 +257,7 @@ const Register = () => {
                   <input
                     id="password"
                     name="password"
+                    autoComplete="true"
                     type={
                       showPassword
                         ? "text"

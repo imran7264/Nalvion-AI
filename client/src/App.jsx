@@ -1,13 +1,9 @@
-import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Transactions from "./pages/Transactions";
 
 import AppLayout from "./components/layout/AppLayout";
 
@@ -34,23 +30,12 @@ const ProtectedRoute = ({ children }) => {
 const App = () => {
   return (
     <BrowserRouter>
-
       <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        <Route
-          path="/"
-          element={<Navigate to="/dashboard" replace />}
-        />
+        <Route path="/login" element={<Login />} />
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+        <Route path="/register" element={<Register />} />
 
         <Route
           element={
@@ -59,66 +44,27 @@ const App = () => {
             </ProtectedRoute>
           }
         >
+          <Route path="/dashboard" element={<Dashboard />} />
 
-          <Route
-            path="/dashboard"
-            element={<Dashboard />}
-          />
+          <Route path="/transactions" element={<Transactions />} />
 
-          <Route
-            path="/transactions"
-            element={
-              <div>
-                Transactions coming soon...
-              </div>
-            }
-          />
+          <Route path="/budgets" element={<div>Budgets coming soon...</div>} />
 
-          <Route
-            path="/budgets"
-            element={
-              <div>
-                Budgets coming soon...
-              </div>
-            }
-          />
-
-          <Route
-            path="/goals"
-            element={
-              <div>
-                Goals coming soon...
-              </div>
-            }
-          />
+          <Route path="/goals" element={<div>Goals coming soon...</div>} />
 
           <Route
             path="/analytics"
-            element={
-              <div>
-                Analytics coming soon...
-              </div>
-            }
+            element={<div>Analytics coming soon...</div>}
           />
 
           <Route
             path="/settings"
-            element={
-              <div>
-                Settings coming soon...
-              </div>
-            }
+            element={<div>Settings coming soon...</div>}
           />
-
         </Route>
 
-        <Route
-          path="*"
-          element={<Navigate to="/dashboard" replace />}
-        />
-
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-
     </BrowserRouter>
   );
 };

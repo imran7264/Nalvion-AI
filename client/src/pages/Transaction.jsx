@@ -7,7 +7,8 @@ function Transactions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
-
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -119,6 +120,41 @@ function Transactions() {
   }, [transactions]);
 
   // =========================================
+  // Edit Transactions
+  // =========================================
+
+  const handleEdit = (transaction) => {
+    setEditingTransaction(transaction);
+    setShowModal(true);
+  };
+
+  // =========================================
+  // Delete Transaction
+  // =========================================
+
+  const handleDelete = async (transactionId) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this transaction?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeleteLoading(true);
+
+      await api.delete(`/transactions/${transactionId}`);
+
+      await loadTransactions();
+    } catch (err) {
+      console.error(err);
+
+      setError(err.response?.data?.message || "Unable to delete transaction.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // =========================================
   // LOADING
   // =========================================
 
@@ -219,10 +255,15 @@ function Transactions() {
       ===================================== */}
 
         {showModal && (
-          <AddTransactionModal
-            onClose={() => setShowModal(false)}
+          <TransactionModal
+            transaction={editingTransaction}
+            onClose={() => {
+              setShowModal(false);
+              setEditingTransaction(null);
+            }}
             onSuccess={() => {
               setShowModal(false);
+              setEditingTransaction(null);
               loadTransactions();
             }}
           />
@@ -459,21 +500,41 @@ function Transactions() {
                       {/* Action */}
 
                       <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          className="
-                              rounded-lg
-                              px-3 py-2
-                              text-xs
-                              font-medium
-                              text-[#64748B]
-                              transition
-                              hover:bg-[#1E293B]
-                              hover:text-[#F8FAFC]
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(transaction)}
+                            className="
+                            px-3 py-2
+                            rounded-lg
+                            font-medium
+                            text-xs
+                            transition
+                          text-[#94A3B8]
+                          hover:text-[#A78BFA]
+                          hover:bg-[#211A52]
+                          "
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(transaction._id)}
+                            className="
+                            px-3 py-2
+                            text-xs
+                            font-medium
+                            text-[#94A3B8]
+                            transition
+                            hover:bg-[#3D1833]
+                            hover:text-[#F43F5E]
+                            rounded-lg
                             "
-                        >
-                          •••
-                        </button>
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -544,14 +605,16 @@ function formatPaymentMethod(method) {
   return labels[method] || "Other";
 }
 
-function AddTransactionModal({ onClose, onSuccess }) {
+function TransactionModal({ transaction, onClose, onSuccess }) {
   const [form, setForm] = useState({
-    type: "expense",
-    amount: "",
-    category: "",
-    description: "",
-    paymentMethod: "upi",
-    date: new Date().toISOString().split("T")[0],
+    type: transaction?.type || "expense",
+    amount: transaction?.amount || "",
+    category: transaction?.category || "",
+    description: transaction?.description || "",
+    paymentMethod: transaction?.paymentMethod || "upi",
+    date: transaction?.date
+      ? new Date(transaction.date).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0]
   });
 
   const [loading, setLoading] = useState(false);
@@ -580,14 +643,20 @@ function AddTransactionModal({ onClose, onSuccess }) {
         return;
       }
 
-      await api.post("/transactions", {
+      const payload = {
         type: form.type,
         amount: Number(form.amount),
         category: form.category,
         description: form.description,
         paymentMethod: form.paymentMethod,
         date: form.date,
-      });
+      };
+
+      if (transaction?._id) {
+        await api.put(`/transactions/${transaction._id}`, payload);
+      } else {
+        await api.post("/transactions", payload);
+      }
 
       onSuccess();
     } catch (err) {
@@ -632,11 +701,13 @@ function AddTransactionModal({ onClose, onSuccess }) {
         <div className="flex items-center justify-between border-b border-[#1E293B] px-6 py-5">
           <div>
             <h2 className="text-xl font-semibold text-[#F8FAFC]">
-              Add transaction
+              {transaction ? "Edit transaction" : "Add transaction"}
             </h2>
 
             <p className="mt-1 text-sm text-[#64748B]">
-              Record your income or expense.
+              {transaction
+                ? "Update your transaction details."
+                : "Record your income or expense."}
             </p>
           </div>
 
@@ -963,7 +1034,11 @@ function AddTransactionModal({ onClose, onSuccess }) {
                 disabled:opacity-50
               "
             >
-              {loading ? "Saving..." : "Add transaction"}
+              {loading
+                ? "Saving..."
+                : transaction
+                  ? "Update transaction"
+                  : "Add transaction"}
             </button>
           </div>
         </form>

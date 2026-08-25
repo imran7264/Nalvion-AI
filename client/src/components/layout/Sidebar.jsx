@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import {
   FiBarChart2,
   FiCreditCard,
+  FiTrendingUp,
   FiHome,
   FiLogOut,
   FiPieChart,
@@ -22,6 +23,11 @@ const navigation = [
     name: "Transactions",
     path: "/transactions",
     icon: FiCreditCard,
+  },
+  {
+    name: "Nalvion AI",
+    path: "/ai-insights",
+    icon: FiTrendingUp,
   },
   {
     name: "Budgets",

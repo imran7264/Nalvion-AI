@@ -125,7 +125,7 @@ function AskNalvion() {
               justify-center
               gap-2
               rounded-xl
-              bg-gradient-to-r
+              bg-linear-to-r
               from-[#7C3AED]
               to-[#9333EA]
               px-6
@@ -212,7 +212,7 @@ function AskNalvion() {
         <div className="mt-6 rounded-2xl border border-[#293754] bg-[#111C31] p-5">
 
           <div className="flex items-start gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#9333EA] text-white shadow-lg shadow-purple-950/30">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#7C3AED] to-[#9333EA] text-white shadow-lg shadow-purple-950/30">
               ✦
             </div>
 

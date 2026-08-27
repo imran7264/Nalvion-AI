@@ -1,31 +1,48 @@
 import { useEffect, useState } from "react";
-import { getFinancialInsight } from "../services/aiService";
+import { getFinancialInsights } from "../services/aiService";
+import { getMonthlyAnalysis } from "../services/analyticsService";
+import AskNalvion from "../components/ai/AskNalvion";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 
 function AIInsights() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [monthly, setMonthly] = useState(null)
 
   useEffect(() => {
-    const loadInsights = async () => {
+    
+    const loadData = async () => {
       try {
-        const response =
-          await getFinancialInsight();
+        const [insightsData, monthlyData] = await Promise.all([
+          getFinancialInsights(),
+          getMonthlyAnalysis(),
+        ]);
 
-        setData(response);
+        setData(insightsData);
+        console.log("insightsData", insightsData)
+        setMonthly(monthlyData, monthlyData);
+        console.log("monthlyData", monthlyData)
+        
       } catch (err) {
         console.error(err);
 
-        setError(
-          err.response?.data?.message ||
-            "Unable to load AI insights."
-        );
+        setError(err.response?.data?.message || "Unable to load AI insights.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadInsights();
+    loadData();
   }, []);
 
   if (loading) {
@@ -46,7 +63,6 @@ function AIInsights() {
 
   return (
     <div className="min-h-full bg-[#070A18] p-5 text-[#F8FAFC] sm:p-6 lg:p-8">
-
       <div className="mb-8">
         <p className="text-sm font-medium text-[#8B5CF6]">
           Intelligent financial analysis
@@ -57,9 +73,8 @@ function AIInsights() {
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[#94A3B8]">
-          Understand your spending patterns,
-          identify unusual expenses, and discover
-          opportunities to improve your finances.
+          Understand your spending patterns, identify unusual expenses, and
+          discover opportunities to improve your finances.
         </p>
       </div>
 
@@ -93,9 +108,8 @@ function AIInsights() {
           </h2>
 
           <p className="mt-4 max-w-2xl text-sm leading-7 text-purple-100">
-            Nalvion analyzes your recorded transactions
-            to identify patterns, spending concentration,
-            unusual expenses, and savings opportunities.
+            Nalvion analyzes your recorded transactions to identify patterns,
+            spending concentration, unusual expenses, and savings opportunities.
           </p>
         </div>
       </div>
@@ -123,24 +137,170 @@ function AIInsights() {
         </div>
       )}
 
+      <div className="mb-6 rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5 sm:p-6">
+        <div className="mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#8B5CF6]">
+            Financial trends
+          </p>
+
+          <h2 className="mt-2 text-xl font-semibold text-[#F8FAFC]">
+            Income vs expenses
+          </h2>
+
+          <p className="mt-1 text-sm text-[#64748B]">
+            See how your financial activity has changed over time.
+          </p>
+        </div>
+
+        <div className="mb-4 flex items-center gap-5">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#00D6A3]" />
+            <span className="text-xs text-[#94A3B8]">Income</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />
+            <span className="text-xs text-[#94A3B8]">Expenses</span>
+          </div>
+        </div>
+
+        {monthly?.months?.length > 0 ? (
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={monthly.months}
+                margin={{
+                  top: 10,
+                  right: 10,
+                  left: -18,
+                  bottom: 0,
+                }}
+              >
+                <defs>
+                  <linearGradient
+                    id="aiIncomeGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="5%" stopColor="#00D6A3" stopOpacity={0.8} />
+
+                    <stop offset="100%" stopColor="#00D6A3" stopOpacity={0} />
+                  </linearGradient>
+
+                  <linearGradient
+                    id="aiExpenseGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8} />
+
+                    <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+
+                <CartesianGrid
+                  stroke="#1E293B"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
+
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{
+                    fill: "#64748B",
+                    fontSize: 11,
+                  }}
+                />
+
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{
+                    fill: "#64748B",
+                    fontSize: 11,
+                  }}
+                  tickFormatter={(value) =>
+                    value >= 1000
+                      ? `₹${(value / 1000).toFixed(0)}K`
+                      : `₹${value}`
+                  }
+                />
+
+                <Tooltip
+                  formatter={(value, name) => [
+                    `₹${Number(value).toLocaleString("en-IN")}`,
+                    name === "income" ? "Income" : "Expenses",
+                  ]}
+                  contentStyle={{
+                    backgroundColor: "#0F172A",
+                    border: "1px solid #293754",
+                    borderRadius: "12px",
+                    color: "#F8FAFC",
+                  }}
+                />
+
+                <Area
+                  type="monotone"
+                  dataKey="income"
+                  stroke="#00D6A3"
+                  strokeWidth={3}
+                  fill="url(#aiIncomeGradient)"
+                  dot={false}
+                />
+
+                <Area
+                  type="monotone"
+                  dataKey="expenses"
+                  stroke="#8B5CF6"
+                  strokeWidth={3}
+                  fill="url(#aiExpenseGradient)"
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="flex h-72 items-center justify-center text-sm text-[#64748B]">
+            Not enough transaction history yet.
+          </div>
+        )}
+      </div>
+
+      {data?.insights?.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold text-[#F8FAFC]">
+              What Nalvion noticed
+            </h2>
+
+            <p className="mt-1 text-sm text-[#64748B]">
+              Important changes detected in your financial activity.
+            </p>
+          </div>
+        </section>
+      )}
       {/* Insights */}
       <div className="grid gap-4 lg:grid-cols-2">
         {data?.insights?.map((insight, index) => (
-          <InsightCard
-            key={`${insight.title}-${index}`}
-            insight={insight}
-          />
+          <InsightCard key={`${insight.title}-${index}`} insight={insight} />
         ))}
       </div>
 
       {data?.insights?.length === 0 && (
         <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] p-8 text-center">
           <p className="text-sm text-[#94A3B8]">
-            Keep adding transactions and Nalvion
-            will generate more insights.
+            Keep adding transactions and Nalvion will generate more insights.
           </p>
         </div>
       )}
+
+      <AskNalvion />
     </div>
   );
 }
@@ -158,14 +318,14 @@ function InsightSummary({
         : "bg-[#211A52] text-[#A78BFA]";
 
   return (
-    <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5">
+    <div className="group rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5">
       <div className="flex items-center justify-between">
         <span className="text-sm text-[#94A3B8]">
           {label}
         </span>
 
         <span
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconClass}`}
+          className={`flex h-9 w-9 items-center justify-center group-hover:scale-150 transition-transform duration-200 rounded-lg ${iconClass}`}
         >
           {type === "income"
             ? "↙"
@@ -219,6 +379,7 @@ function InsightCard({ insight }) {
         transition
         hover:border-[#293754]
         hover:bg-[#131D33]
+        hover:scale-102
       "
     >
       <div className="flex gap-4">

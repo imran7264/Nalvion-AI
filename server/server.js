@@ -6,6 +6,7 @@ const authRoutes = require("./routes/authRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const aiRoutes = require("./routes/aiRoutes")
+const analyticsRoute = require("./routes/analyticsRoutes")
 
 const app = express();
 
@@ -17,7 +18,8 @@ connectDB();
 app.use("/api/auth", authRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/ai", aiRoutes)
+app.use("/api/ai", aiRoutes);
+app.use("/api/analytics", analyticsRoute);
 
 app.get("/", (req, res) => {
   res.json({

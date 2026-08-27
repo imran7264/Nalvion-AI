@@ -1,20 +1,16 @@
 const express = require("express");
 
 const {
-  getFinancialInsights,
-  askNalvion,
-} = require("../controllers/aiController");
+  getMonthlyAnalysis,
+} = require("../controllers/analyticsController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
 router.use(authMiddleware);
 
 router.get(
-  "/insights",
-  getFinancialInsights
+  "/monthly",
+  getMonthlyAnalysis
 );
-router.post(
-    "/ask",
-    askNalvion
-)
+
 module.exports = router;

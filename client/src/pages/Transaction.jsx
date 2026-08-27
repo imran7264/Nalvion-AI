@@ -174,7 +174,7 @@ function Transactions() {
 
       <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="mb-2 text-sm font-medium text-violet-400">
+          <p className="mb-2 text-sm font-medium text-[#8B5CF6]">
             Financial activity
           </p>
 

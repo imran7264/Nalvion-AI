@@ -5,8 +5,9 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const aiRoutes = require("./routes/aiRoutes")
-const analyticsRoute = require("./routes/analyticsRoutes")
+const aiRoutes = require("./routes/aiRoutes");
+const analyticsRoute = require("./routes/analyticsRoutes");
+const budgetRoutes = require("./routes/budgetRoutes");
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/analytics", analyticsRoute);
+app.use("/api/budgets", budgetRoutes);
 
 app.get("/", (req, res) => {
   res.json({

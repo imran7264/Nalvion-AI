@@ -3,6 +3,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Transaction from "./pages/Transaction";
+import Budgets from "./pages/Budgets";
 import AppLayout from "./components/layout/AppLayout";
 import AIInsights from "./pages/AIInsights";
 import { useAuth } from "./context/AuthContext";
@@ -42,7 +43,7 @@ const App = () => {
         >
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/transactions" element={<Transaction />} />
-          <Route path="/budgets" element={<div>Budgets coming soon...</div>} />
+          <Route path="/budgets" element={<Budgets />} />
           <Route path="/goals" element={<div>Goals coming soon...</div>} />
           <Route path="/ai-insights" element={<AIInsights />} />
 

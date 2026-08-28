@@ -870,25 +870,16 @@ function TransactionModal({ transaction, onClose, onSuccess }) {
               "
             >
               <option value="">Select category</option>
-
               <option value="Food">Food</option>
-
               <option value="Shopping">Shopping</option>
-
               <option value="Transport">Transport</option>
-
               <option value="Bills">Bills</option>
-
               <option value="Entertainment">Entertainment</option>
-
               <option value="Health">Health</option>
-
               <option value="Education">Education</option>
-
               <option value="Salary">Salary</option>
-
+              <option value="Travel">Travel</option>
               <option value="Freelance">Freelance</option>
-
               <option value="Other">Other</option>
             </select>
           </div>

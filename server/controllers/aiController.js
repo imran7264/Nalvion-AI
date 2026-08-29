@@ -1,4 +1,5 @@
 const Transaction = require("../models/Transaction");
+const Budget = require("../models/Budget");
 
 const formatCurrency = (amount) => {
   return Number(amount || 0).toLocaleString(
@@ -16,14 +17,23 @@ const getFinancialInsights = async (
   try {
     const userId = req.user.userId;
 
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const budgets = await Budget.find({
+      user: userId,
+      month: currentMonth,
+      year: currentYear,
+    });
+
     // =========================================
     // GET USER TRANSACTIONS
     // =========================================
 
-    const transactions =
-      await Transaction.find({
-        user: userId,
-      }).sort({ date: -1 });
+    const transactions = await Transaction.find({
+      user: userId,
+    }).sort({ date: -1 });
 
     // =========================================
     // NO TRANSACTIONS
@@ -53,57 +63,72 @@ const getFinancialInsights = async (
     // SEPARATE TRANSACTIONS
     // =========================================
 
-    const incomeTransactions =
-      transactions.filter(
-        (transaction) =>
-          transaction.type === "income"
-      );
+    const incomeTransactions = transactions.filter(
+      (transaction) => transaction.type === "income",
+    );
 
-    const expenseTransactions =
-      transactions.filter(
-        (transaction) =>
-          transaction.type === "expense"
-      );
+    const expenseTransactions = transactions.filter(
+      (transaction) => transaction.type === "expense",
+    );
+
+    // =========================================
+    // CURRENT MONTH EXPENSES
+    // =========================================
+
+    const currentMonthExpenseTransactions = expenseTransactions.filter(
+      (transaction) => {
+        const date = new Date(transaction.date);
+
+        return (
+          date.getMonth() + 1 === currentMonth &&
+          date.getFullYear() === currentYear
+        );
+      },
+    );
+
+    // =========================================
+    // CURRENT MONTH CATEGORY TOTALS
+    // =========================================
+
+    const currentMonthCategoryTotals = {};
+
+    currentMonthExpenseTransactions.forEach((transaction) => {
+      const category = transaction.category || "Other";
+
+      currentMonthCategoryTotals[category] =
+        (currentMonthCategoryTotals[category] || 0) +
+        (Number(transaction.amount) || 0);
+    });
 
     // =========================================
     // TOTAL INCOME
     // =========================================
 
-    const totalIncome =
-      incomeTransactions.reduce(
-        (sum, transaction) =>
-          sum +
-          (Number(transaction.amount) || 0),
-        0
-      );
+    const totalIncome = incomeTransactions.reduce(
+      (sum, transaction) => sum + (Number(transaction.amount) || 0),
+      0,
+    );
 
     // =========================================
     // TOTAL EXPENSES
     // =========================================
 
-    const totalExpenses =
-      expenseTransactions.reduce(
-        (sum, transaction) =>
-          sum +
-          (Number(transaction.amount) || 0),
-        0
-      );
+    const totalExpenses = expenseTransactions.reduce(
+      (sum, transaction) => sum + (Number(transaction.amount) || 0),
+      0,
+    );
 
     // =========================================
     // BALANCE
     // =========================================
 
-    const balance =
-      totalIncome - totalExpenses;
+    const balance = totalIncome - totalExpenses;
 
     // =========================================
     // SAVINGS RATE
     // =========================================
 
-    const savingsRate =
-      totalIncome > 0
-        ? (balance / totalIncome) * 100
-        : 0;
+    const savingsRate = totalIncome > 0 ? (balance / totalIncome) * 100 : 0;
 
     // =========================================
     // INSIGHTS ARRAY
@@ -118,21 +143,19 @@ const getFinancialInsights = async (
     if (balance < 0) {
       insights.push({
         type: "warning",
-        title:
-          "You're spending more than you earn",
+        title: "You're spending more than you earn",
 
         message: `Your recorded expenses are ₹${formatCurrency(
-          Math.abs(balance)
+          Math.abs(balance),
         )} higher than your recorded income.`,
       });
     } else if (balance > 0) {
       insights.push({
         type: "positive",
-        title:
-          "You're earning more than you spend",
+        title: "You're earning more than you spend",
 
         message: `Your recorded income is ₹${formatCurrency(
-          balance
+          balance,
         )} higher than your recorded expenses.`,
       });
     } else {
@@ -140,8 +163,7 @@ const getFinancialInsights = async (
         type: "neutral",
         title: "Your finances are balanced",
 
-        message:
-          "Your recorded income and expenses are currently equal.",
+        message: "Your recorded income and expenses are currently equal.",
       });
     }
 
@@ -156,9 +178,9 @@ const getFinancialInsights = async (
           title: "Negative savings rate",
 
           message: `Your expenses currently exceed your income by ${Math.abs(
-            savingsRate
+            savingsRate,
           ).toFixed(
-            1
+            1,
           )}%. Reducing unnecessary spending could improve your cash flow.`,
         });
       } else if (savingsRate < 20) {
@@ -167,7 +189,7 @@ const getFinancialInsights = async (
           title: "Low savings rate",
 
           message: `You're currently saving about ${savingsRate.toFixed(
-            1
+            1,
           )}% of your recorded income. Consider reviewing your largest expense categories.`,
         });
       } else {
@@ -176,7 +198,7 @@ const getFinancialInsights = async (
           title: "Healthy savings rate",
 
           message: `You're currently saving about ${savingsRate.toFixed(
-            1
+            1,
           )}% of your recorded income. Keep maintaining your savings habit.`,
         });
       }
@@ -188,45 +210,30 @@ const getFinancialInsights = async (
 
     const categoryTotals = {};
 
-    expenseTransactions.forEach(
-      (transaction) => {
-        const category =
-          transaction.category ||
-          "Other";
+    expenseTransactions.forEach((transaction) => {
+      const category = transaction.category || "Other";
 
-        categoryTotals[category] =
-          (categoryTotals[category] || 0) +
-          (Number(transaction.amount) || 0);
-      }
-    );
+      categoryTotals[category] =
+        (categoryTotals[category] || 0) + (Number(transaction.amount) || 0);
+    });
 
-    const categories = Object.entries(
-      categoryTotals
-    ).sort(
-      (a, b) => b[1] - a[1]
+    const categories = Object.entries(categoryTotals).sort(
+      (a, b) => b[1] - a[1],
     );
 
     if (categories.length > 0) {
-      const [
-        topCategory,
-        topAmount,
-      ] = categories[0];
+      const [topCategory, topAmount] = categories[0];
 
       const percentage =
-        totalExpenses > 0
-          ? (topAmount /
-              totalExpenses) *
-            100
-          : 0;
+        totalExpenses > 0 ? (topAmount / totalExpenses) * 100 : 0;
 
       insights.push({
         type: "category",
 
-        title:
-          "Your biggest spending category",
+        title: "Your biggest spending category",
 
         message: `${topCategory} represents approximately ${percentage.toFixed(
-          1
+          1,
         )}% of your recorded expenses.`,
 
         category: topCategory,
@@ -236,43 +243,90 @@ const getFinancialInsights = async (
     }
 
     // =========================================
+    // BUDGET ANALYSIS
+    // =========================================
+
+    const budgetInsights = [];
+
+    if (budgets.length > 0) {
+      budgets.forEach((budget) => {
+        const spent = currentMonthCategoryTotals[budget.category] || 0;
+
+        const percentage =
+          budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+
+        // -------------------------------
+        // OVER BUDGET
+        // -------------------------------
+
+        if (percentage > 100) {
+          budgetInsights.push({
+            type: "budget-warning",
+            title: `${budget.category} budget exceeded`,
+            message: `You've spent ₹${formatCurrency(
+              spent,
+            )} against your ₹${formatCurrency(
+              budget.amount,
+            )} ${budget.category} budget this month.`,
+
+            category: budget.category,
+            budget: budget.amount,
+            spent,
+            percentage: Number(percentage.toFixed(1)),
+          });
+        }
+
+        // -------------------------------
+        // NEAR BUDGET
+        // -------------------------------
+        else if (percentage >= 80) {
+          budgetInsights.push({
+            type: "budget-alert",
+
+            title: `${budget.category} budget is almost reached`,
+
+            message: `You've used ${percentage.toFixed(
+              1,
+            )}% of your ${budget.category} budget this month.`,
+
+            category: budget.category,
+
+            budget: budget.amount,
+
+            spent,
+
+            percentage: Number(percentage.toFixed(1)),
+          });
+        }
+      });
+    }
+
+    // =========================================
     // 4. UNUSUAL EXPENSE
     // =========================================
 
     if (expenseTransactions.length > 1) {
-      const averageExpense =
-        totalExpenses /
-        expenseTransactions.length;
+      const averageExpense = totalExpenses / expenseTransactions.length;
 
-      const unusualExpense =
-        [...expenseTransactions]
-          .sort(
-            (a, b) =>
-              Number(b.amount) -
-              Number(a.amount)
-          )
-          .find(
-            (transaction) =>
-              Number(transaction.amount) >=
-              averageExpense * 3
-          );
+      const unusualExpense = [...expenseTransactions]
+        .sort((a, b) => Number(b.amount) - Number(a.amount))
+        .find(
+          (transaction) => Number(transaction.amount) >= averageExpense * 3,
+        );
 
       if (unusualExpense) {
         insights.push({
           type: "alert",
 
-          title:
-            "Unusual expense detected",
+          title: "Unusual expense detected",
 
           message: `Your ${
-            unusualExpense.category ||
-            "Other"
+            unusualExpense.category || "Other"
           } transaction of ₹${formatCurrency(
-            unusualExpense.amount
+            unusualExpense.amount,
           )} is significantly higher than your average expense.`,
 
-          transactionId:
-            unusualExpense._id,
+          transactionId: unusualExpense._id,
         });
       }
     }
@@ -289,35 +343,26 @@ const getFinancialInsights = async (
     //
     // =========================================
 
-    if (
-      categories.length > 0 &&
-      totalExpenses > 0
-    ) {
-      const [
-        topCategory,
-        topAmount,
-      ] = categories[0];
+    if (categories.length > 0 && totalExpenses > 0) {
+      const [topCategory, topAmount] = categories[0];
 
-      const percentage =
-        (topAmount / totalExpenses) * 100;
+      const percentage = (topAmount / totalExpenses) * 100;
 
       if (percentage >= 50) {
         insights.push({
           type: "warning",
 
-          title:
-            "Most of your spending is concentrated",
+          title: "Most of your spending is concentrated",
 
           message: `${topCategory} accounts for ${percentage.toFixed(
-            1
+            1,
           )}% of your recorded expenses. Reviewing this category could have a significant impact on your finances.`,
         });
       } else {
         insights.push({
           type: "info",
 
-          title:
-            "Your spending is well distributed",
+          title: "Your spending is well distributed",
 
           message:
             "No single category currently dominates most of your recorded expenses.",
@@ -328,17 +373,16 @@ const getFinancialInsights = async (
     // =========================================
     // RETURN ONLY 5 INSIGHTS
     // =========================================
+    const combinedInsights = [...budgetInsights, ...insights];
 
     res.json({
-      insights: insights.slice(0, 5),
+      insights: combinedInsights.slice(0, 5),
 
       summary: {
         totalIncome,
         totalExpenses,
         balance,
-        savingsRate: Number(
-          savingsRate.toFixed(1)
-        ),
+        savingsRate: Number(savingsRate.toFixed(1)),
       },
     });
   } catch (error) {

@@ -8,6 +8,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const analyticsRoute = require("./routes/analyticsRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
+const goalRoutes = require('./routes/goalRoutes')
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/analytics", analyticsRoute);
 app.use("/api/budgets", budgetRoutes);
+app.use("/api/goals", goalRoutes)
 
 app.get("/", (req, res) => {
   res.json({

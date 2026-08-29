@@ -62,7 +62,7 @@ function Budgets() {
   };
 
   useEffect(() => {
-    loadBudgets();
+     loadBudgets();
   }, [month, year]);
 
   // =========================================
@@ -432,6 +432,28 @@ function Budgets() {
           <p className="mt-1 text-sm text-[#64748B]">{monthName}</p>
         </div>
 
+         <div className="mb-4 flex items-center gap-5">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#00D6A3]" />
+                  <span className="text-xs text-[#94A3B8]">Healthy Budget</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />
+                  <span className="text-xs text-[#94A3B8]">Normal Budget</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]" />
+                  <span className="text-xs text-[#94A3B8]">Near Budget</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#F43F5E]" />
+                  <span className="text-xs text-[#94A3B8]">Over Budget</span>
+                </div>
+              </div>
+
         {budgets.length === 0 ? (
           <EmptyBudgets onCreate={openCreateModal} />
         ) : (
@@ -521,8 +543,8 @@ function BudgetCard({ budget, formatCurrency, onEdit, onDelete }) {
   const percentage = Number(budget.percentage || 0);
 
   const isOverBudget = percentage > 100;
-
   const isNearLimit = percentage >= 80 && percentage <= 100;
+  const isNotNearToBudget = percentage <= 30;
 
   const remaining = Number(budget.remaining || 0);
 
@@ -534,6 +556,9 @@ function BudgetCard({ budget, formatCurrency, onEdit, onDelete }) {
 
   if (isOverBudget) {
     progressClass = "from-[#E11D48] to-[#F43F5E]";
+  }
+  if (isNotNearToBudget) {
+    progressClass = "from-[#2ff016] to-[#42A341]"
   }
 
   return (
@@ -619,7 +644,9 @@ function BudgetCard({ budget, formatCurrency, onEdit, onDelete }) {
                 ? "text-[#F43F5E]"
                 : isNearLimit
                   ? "text-[#F59E0B]"
-                  : "text-[#A78BFA]"
+                  : isNotNearToBudget
+                  ? "text-[#2ff016]"
+                  : "text-[#A78BFA]" 
             }
           `}
         >
@@ -656,7 +683,9 @@ function BudgetCard({ budget, formatCurrency, onEdit, onDelete }) {
                 ? "text-[#F43F5E]"
                 : isNearLimit
                   ? "text-[#F59E0B]"
-                  : "text-[#64748B]"
+                  : isNotNearToBudget
+                  ? "text-[#2ff016]"
+                  : "text-[#A78BFA]"
             }
           `}
         >

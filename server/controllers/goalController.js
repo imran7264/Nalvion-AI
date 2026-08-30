@@ -140,7 +140,7 @@ const updateGoal = async (req, res) => {
             targetDate || null,
         },
         {
-          new: true,
+          returnDocument: "after",
           runValidators: true,
         }
       );

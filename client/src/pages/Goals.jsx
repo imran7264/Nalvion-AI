@@ -4,19 +4,20 @@ import {
   deleteGoal,
   getGoals,
   updateGoal,
+  addGoalContribution,
 } from "../services/goalService";
 
 function Goals() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [showModal, setShowModal] =
-    useState(false);
-
-  const [editingGoal, setEditingGoal] =
-    useState(null);
-
+  const [showContributionModal, setShowContributionModal] = useState(false);
+  const [contributionGoal, setContributionGoal] = useState(null);
+  const [contributionAmount, setContributionAmount] = useState("");
+  const [contributionError, setContributionError] = useState("");
+  const [contributing, setContributing] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
@@ -41,10 +42,7 @@ function Goals() {
     } catch (err) {
       console.error(err);
 
-      setError(
-        err.response?.data?.message ||
-          "Unable to load goals."
-      );
+      setError(err.response?.data?.message || "Unable to load goals.");
     } finally {
       setLoading(false);
     }
@@ -86,27 +84,21 @@ function Goals() {
 
   const totals = useMemo(() => {
     const target = goals.reduce(
-      (sum, goal) =>
-        sum + Number(goal.targetAmount || 0),
-      0
+      (sum, goal) => sum + Number(goal.targetAmount || 0),
+      0,
     );
 
     const saved = goals.reduce(
-      (sum, goal) =>
-        sum + Number(goal.savedAmount || 0),
-      0
+      (sum, goal) => sum + Number(goal.savedAmount || 0),
+      0,
     );
 
     const remaining = goals.reduce(
-      (sum, goal) =>
-        sum + Number(goal.remaining || 0),
-      0
+      (sum, goal) => sum + Number(goal.remaining || 0),
+      0,
     );
 
-    const percentage =
-      target > 0
-        ? (saved / target) * 100
-        : 0;
+    const percentage = target > 0 ? (saved / target) * 100 : 0;
 
     return {
       target,
@@ -146,9 +138,7 @@ function Goals() {
       targetAmount: goal.targetAmount,
       savedAmount: goal.savedAmount,
       targetDate: goal.targetDate
-        ? new Date(goal.targetDate)
-            .toISOString()
-            .split("T")[0]
+        ? new Date(goal.targetDate).toISOString().split("T")[0]
         : "",
     });
 
@@ -172,10 +162,7 @@ function Goals() {
   // =========================================
 
   const handleChange = (event) => {
-    const {
-      name,
-      value,
-    } = event.target;
+    const { name, value } = event.target;
 
     setForm((previous) => ({
       ...previous,
@@ -190,36 +177,22 @@ function Goals() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const targetAmount = Number(
-      form.targetAmount
-    );
+    const targetAmount = Number(form.targetAmount);
 
-    const savedAmount = Number(
-      form.savedAmount || 0
-    );
+    const savedAmount = Number(form.savedAmount || 0);
 
     if (!form.name.trim()) {
       setError("Please enter a goal name.");
       return;
     }
 
-    if (
-      !targetAmount ||
-      targetAmount <= 0
-    ) {
-      setError(
-        "Please enter a valid target amount."
-      );
+    if (!targetAmount || targetAmount <= 0) {
+      setError("Please enter a valid target amount.");
       return;
     }
 
-    if (
-      savedAmount < 0 ||
-      savedAmount > targetAmount
-    ) {
-      setError(
-        "Saved amount must be between ₹0 and the target amount."
-      );
+    if (savedAmount < 0 || savedAmount > targetAmount) {
+      setError("Saved amount must be between ₹0 and the target amount.");
       return;
     }
 
@@ -231,15 +204,11 @@ function Goals() {
         name: form.name.trim(),
         targetAmount,
         savedAmount,
-        targetDate:
-          form.targetDate || null,
+        targetDate: form.targetDate || null,
       };
 
       if (editingGoal) {
-        await updateGoal(
-          editingGoal._id,
-          goalData
-        );
+        await updateGoal(editingGoal._id, goalData);
       } else {
         await createGoal(goalData);
       }
@@ -251,10 +220,7 @@ function Goals() {
     } catch (err) {
       console.error(err);
 
-      setError(
-        err.response?.data?.message ||
-          "Unable to save goal."
-      );
+      setError(err.response?.data?.message || "Unable to save goal.");
     } finally {
       setSaving(false);
     }
@@ -266,7 +232,7 @@ function Goals() {
 
   const handleDelete = async (id) => {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this goal?"
+      "Are you sure you want to delete this goal?",
     );
 
     if (!confirmed) return;
@@ -280,10 +246,76 @@ function Goals() {
     } catch (err) {
       console.error(err);
 
-      setError(
-        err.response?.data?.message ||
-          "Unable to delete goal."
+      setError(err.response?.data?.message || "Unable to delete goal.");
+    }
+  };
+
+  // =========================================
+  // OPEN CONTRIBUTION MODAL
+  // =========================================
+
+  const openContributionModal = (goal) => {
+    setContributionGoal(goal);
+    setContributionAmount("");
+    setContributionError("");
+    setShowContributionModal(true);
+  };
+
+  // =========================================
+  // CLOSE CONTRIBUTION MODAL
+  // =========================================
+
+  const closeContributionModal = () => {
+    if (contributing) return;
+
+    setShowContributionModal(false);
+    setContributionGoal(null);
+    setContributionAmount("");
+    setContributionError("");
+  };
+
+  // =========================================
+  // ADD CONTRIBUTION
+  // =========================================
+
+  const handleContribution = async (event) => {
+    event.preventDefault();
+
+    const amount = Number(contributionAmount);
+
+    if (!amount || amount <= 0) {
+      setContributionError("Please enter a valid contribution amount.");
+
+      return;
+    }
+
+    const remaining = Number(contributionGoal?.remaining) || 0;
+
+    if (amount > remaining) {
+      setContributionError(
+        `You can contribute a maximum of ${formatCurrency(remaining)}.`,
       );
+
+      return;
+    }
+
+    try {
+      setContributing(true);
+      setContributionError("");
+
+      await addGoalContribution(contributionGoal._id, amount);
+
+      closeContributionModal();
+
+      await loadGoals();
+    } catch (err) {
+      console.error(err);
+
+      setContributionError(
+        err.response?.data?.message || "Unable to add contribution.",
+      );
+    } finally {
+      setContributing(false);
     }
   };
 
@@ -301,13 +333,11 @@ function Goals() {
 
   return (
     <div className="min-h-full bg-[#070A18] p-5 text-[#F8FAFC] sm:p-6 lg:p-8">
-
       {/* =====================================
           HEADER
       ===================================== */}
 
       <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-
         <div>
           <p className="mb-2 text-sm font-medium text-[#8B5CF6]">
             Financial goals
@@ -346,10 +376,7 @@ function Goals() {
             hover:to-[#A855F7]
           "
         >
-          <span className="text-lg leading-none">
-            +
-          </span>
-
+          <span className="text-lg leading-none">+</span>
           Create goal
         </button>
       </div>
@@ -369,40 +396,30 @@ function Goals() {
       ===================================== */}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
         <GoalSummaryCard
           title="Total target"
-          value={formatCurrency(
-            totals.target
-          )}
+          value={formatCurrency(totals.target)}
           icon="◎"
           iconClass="bg-[#211A52] text-[#A78BFA]"
         />
 
         <GoalSummaryCard
           title="Total saved"
-          value={formatCurrency(
-            totals.saved
-          )}
+          value={formatCurrency(totals.saved)}
           icon="↗"
           iconClass="bg-[#063B3A] text-[#00D6A3]"
         />
 
         <GoalSummaryCard
           title="Remaining"
-          value={formatCurrency(
-            totals.remaining
-          )}
+          value={formatCurrency(totals.remaining)}
           icon="◫"
           iconClass="bg-[#3D3011] text-[#F59E0B]"
         />
 
         <GoalSummaryCard
           title="Overall progress"
-          value={`${Math.min(
-            totals.percentage,
-            100
-          ).toFixed(1)}%`}
+          value={`${Math.min(totals.percentage, 100).toFixed(1)}%`}
           icon="✦"
           iconClass="bg-[#211A52] text-[#A78BFA]"
         />
@@ -413,11 +430,8 @@ function Goals() {
       ===================================== */}
 
       <div>
-
         <div className="mb-5">
-          <h2 className="text-xl font-semibold text-[#F8FAFC]">
-            Your goals
-          </h2>
+          <h2 className="text-xl font-semibold text-[#F8FAFC]">Your goals</h2>
 
           <p className="mt-1 text-sm text-[#64748B]">
             Track your progress toward what matters.
@@ -425,21 +439,18 @@ function Goals() {
         </div>
 
         {goals.length === 0 ? (
-          <EmptyGoals
-            onCreate={openCreateModal}
-          />
+          <EmptyGoals onCreate={openCreateModal} />
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {goals.map((goal) => (
               <GoalCard
                 key={goal._id}
                 goal={goal}
-                formatCurrency={
-                  formatCurrency
-                }
+                formatCurrency={formatCurrency}
                 formatDate={formatDate}
                 onEdit={openEditModal}
                 onDelete={handleDelete}
+                onContribute={openContributionModal}
               />
             ))}
           </div>
@@ -459,6 +470,19 @@ function Goals() {
           onChange={handleChange}
           onSubmit={handleSubmit}
           onClose={closeModal}
+        />
+      )}
+
+      {showContributionModal && (
+        <ContributionModal
+          goal={contributionGoal}
+          amount={contributionAmount}
+          error={contributionError}
+          saving={contributing}
+          onChange={(event) => setContributionAmount(event.target.value)}
+          onSubmit={handleContribution}
+          onClose={closeContributionModal}
+          formatCurrency={formatCurrency}
         />
       )}
     </div>
@@ -532,6 +556,7 @@ function GoalCard({
   formatDate,
   onEdit,
   onDelete,
+  onContribute,
 }) {
   const percentage = Number(
     goal.percentage || 0
@@ -710,7 +735,41 @@ function GoalCard({
         )}
 
       </div>
+      {/* Contribution */}
 
+{!isComplete && (
+  <button
+    type="button"
+    onClick={() => onContribute(goal)}
+    className="
+      mt-5
+      flex
+      w-full
+      items-center
+      justify-center
+      gap-2
+      rounded-xl
+      border
+      border-[#293754]
+      bg-[#211A52]
+      px-4
+      py-3
+      text-sm
+      font-semibold
+      text-[#C4B5FD]
+      transition
+      hover:border-[#7C3AED]
+      hover:bg-[#2A1B63]
+      hover:text-white
+    "
+  >
+    <span className="text-base">
+      +
+    </span>
+
+    Add contribution
+  </button>
+)}
     </div>
   );
 }
@@ -1081,6 +1140,276 @@ function GoalModal({
 
           </div>
 
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// =============================================
+// CONTRIBUTION MODAL
+// =============================================
+
+function ContributionModal({
+  goal,
+  amount,
+  error,
+  saving,
+  onChange,
+  onSubmit,
+  onClose,
+  formatCurrency,
+}) {
+  if (!goal) return null;
+
+  return (
+    <div
+      className="
+        fixed
+        inset-0
+        z-50
+        flex
+        items-center
+        justify-center
+        bg-black/70
+        p-4
+        backdrop-blur-sm
+      "
+      onMouseDown={(event) => {
+        if (
+          event.target === event.currentTarget
+        ) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="
+          w-full
+          max-w-md
+          rounded-2xl
+          border
+          border-[#293754]
+          bg-[#0F172A]
+          p-6
+          shadow-2xl
+          shadow-black/50
+        "
+      >
+        {/* Header */}
+
+        <div className="mb-6 flex items-start justify-between">
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B5CF6]">
+              Goal contribution
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold text-[#F8FAFC]">
+              Add to {goal.name}
+            </h2>
+
+            <p className="mt-1 text-sm text-[#64748B]">
+              Increase the amount you've saved
+              toward this goal.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="
+              flex
+              h-9
+              w-9
+              items-center
+              justify-center
+              rounded-lg
+              text-lg
+              text-[#64748B]
+              transition
+              hover:bg-[#1E293B]
+              hover:text-[#F8FAFC]
+              disabled:opacity-50
+            "
+          >
+            ×
+          </button>
+
+        </div>
+
+        {/* Progress */}
+
+        <div className="mb-6 rounded-xl border border-[#1E293B] bg-[#070A18] p-4">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+              <p className="text-xs text-[#64748B]">
+                Currently saved
+              </p>
+
+              <p className="mt-1 text-lg font-bold text-[#F8FAFC]">
+                {formatCurrency(
+                  goal.savedAmount
+                )}
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p className="text-xs text-[#64748B]">
+                Remaining
+              </p>
+
+              <p className="mt-1 text-lg font-bold text-[#A78BFA]">
+                {formatCurrency(
+                  goal.remaining
+                )}
+              </p>
+            </div>
+
+          </div>
+
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#1E293B]">
+            <div
+              className="
+                h-full
+                rounded-full
+                bg-linear-to-r
+                from-[#7C3AED]
+                to-[#A855F7]
+              "
+              style={{
+                width: `${Math.min(
+                  Number(goal.percentage) || 0,
+                  100
+                )}%`,
+              }}
+            />
+          </div>
+
+        </div>
+
+        {/* Error */}
+
+        {error && (
+          <div className="mb-5 rounded-xl border border-[#3D1833] bg-[#170D18] px-4 py-3 text-sm text-[#F43F5E]">
+            {error}
+          </div>
+        )}
+
+        {/* Form */}
+
+        <form
+          onSubmit={onSubmit}
+          className="space-y-5"
+        >
+          <div>
+            <label className="mb-2 block text-sm font-medium text-[#CBD5E1]">
+              Contribution amount
+            </label>
+
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#64748B]">
+                ₹
+              </span>
+
+              <input
+                type="number"
+                value={amount}
+                onChange={onChange}
+                placeholder="5,000"
+                min="1"
+                max={goal.remaining}
+                step="1"
+                autoFocus
+                required
+                className="
+                  w-full
+                  rounded-xl
+                  border
+                  border-[#1E293B]
+                  bg-[#070A18]
+                  py-3
+                  pl-9
+                  pr-4
+                  text-sm
+                  text-[#F8FAFC]
+                  placeholder:text-[#475569]
+                  outline-none
+                  transition
+                  focus:border-[#7C3AED]
+                  focus:ring-1
+                  focus:ring-[#7C3AED]
+                "
+              />
+            </div>
+
+            <p className="mt-2 text-xs text-[#475569]">
+              Maximum contribution:{" "}
+              {formatCurrency(
+                goal.remaining
+              )}
+            </p>
+          </div>
+
+          {/* Buttons */}
+
+          <div className="flex gap-3 pt-2">
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="
+                flex-1
+                rounded-xl
+                border
+                border-[#1E293B]
+                bg-[#070A18]
+                px-4
+                py-3
+                text-sm
+                font-semibold
+                text-[#CBD5E1]
+                transition
+                hover:bg-[#1E293B]
+                disabled:opacity-50
+              "
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="
+                flex-1
+                rounded-xl
+                bg-linear-to-r
+                from-[#7C3AED]
+                to-[#9333EA]
+                px-4
+                py-3
+                text-sm
+                font-semibold
+                text-white
+                shadow-lg
+                shadow-purple-950/30
+                transition
+                hover:from-[#8B5CF6]
+                hover:to-[#A855F7]
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+            >
+              {saving
+                ? "Adding..."
+                : "Add contribution"}
+            </button>
+
+          </div>
         </form>
       </div>
     </div>

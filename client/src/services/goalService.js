@@ -15,6 +15,20 @@ export const createGoal = async (goal) => {
   return response.data;
 };
 
+export const addGoalContribution = async (
+  goalId,
+  amount
+) => {
+  const response = await api.post(
+    `/goals/${goalId}/contribute`,
+    {
+      amount,
+    }
+  );
+
+  return response.data;
+};
+
 export const updateGoal = async (
   id,
   goal

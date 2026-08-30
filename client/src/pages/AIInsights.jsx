@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
-import { getFinancialInsights } from "../services/aiService";
-import { getMonthlyAnalysis } from "../services/analyticsService";
-import AskNalvion from "../components/ai/AskNalvion";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -12,27 +9,38 @@ import {
   YAxis,
 } from "recharts";
 
+import { getFinancialInsights } from "../services/aiService";
+import { getMonthlyAnalysis } from "../services/analyticsService";
+import AskNalvion from "../components/ai/AskNalvion";
 
 function AIInsights() {
   const [data, setData] = useState(null);
+  const [monthly, setMonthly] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [monthly, setMonthly] = useState(null)
+
+  // =========================================
+  // LOAD AI + ANALYTICS DATA
+  // =========================================
 
   useEffect(() => {
-    
     const loadData = async () => {
       try {
+        setLoading(true);
+        setError("");
+
         const [insightsData, monthlyData] = await Promise.all([
           getFinancialInsights(),
           getMonthlyAnalysis(),
         ]);
 
         setData(insightsData);
-        console.log("insightsData", insightsData)
-        setMonthly(monthlyData, monthlyData);
-        console.log("monthlyData", monthlyData)
-        
+        setMonthly(monthlyData);
+
+        console.log("AI insights:", insightsData);
+
+        console.log("Monthly analytics:", monthlyData);
       } catch (err) {
         console.error(err);
 
@@ -45,6 +53,57 @@ function AIInsights() {
     loadData();
   }, []);
 
+  // =========================================
+  // CURRENCY
+  // =========================================
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
+  };
+
+  // =========================================
+  // CHART DATA
+  // =========================================
+
+  const chartData = useMemo(() => {
+    return monthly?.months || [];
+  }, [monthly]);
+
+  // =========================================
+  // INSIGHT COUNTS
+  // =========================================
+
+  const insightStats = useMemo(() => {
+    const insights = data?.insights || [];
+
+    return {
+      total: insights.length,
+
+      warnings: insights.filter(
+        (item) =>
+          item.type === "warning" ||
+          item.type === "budget-warning" ||
+          item.type === "goal-warning",
+      ).length,
+
+      positive: insights.filter(
+        (item) => item.type === "positive" || item.type === "goal-positive",
+      ).length,
+
+      alerts: insights.filter(
+        (item) => item.type === "alert" || item.type === "budget-alert",
+      ).length,
+    };
+  }, [data]);
+
+  // =========================================
+  // LOADING
+  // =========================================
+
   if (loading) {
     return (
       <div className="flex min-h-full items-center justify-center bg-[#070A18]">
@@ -53,122 +112,260 @@ function AIInsights() {
     );
   }
 
+  // =========================================
+  // ERROR
+  // =========================================
+
   if (error) {
     return (
-      <div className="min-h-full bg-[#070A18] p-6 text-[#F43F5E]">
-        {error}
+      <div className="min-h-full bg-[#070A18] p-6 lg:p-8">
+        <div className="rounded-2xl border border-[#3D1833] bg-[#170D18] p-5 text-sm text-[#F43F5E]">
+          {error}
+        </div>
       </div>
     );
   }
 
+  const summary = data?.summary;
+
   return (
     <div className="min-h-full bg-[#070A18] p-5 text-[#F8FAFC] sm:p-6 lg:p-8">
-      <div className="mb-8">
+      {/* =====================================
+          PAGE HEADER
+      ===================================== */}
+
+      <div className="mb-7">
         <p className="text-sm font-medium text-[#8B5CF6]">
-          Intelligent financial analysis
+          Your financial intelligence
         </p>
 
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
           Nalvion AI
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[#94A3B8]">
-          Understand your spending patterns, identify unusual expenses, and
-          discover opportunities to improve your finances.
+          Ask questions about your finances, understand your spending, and get
+          personalized insights based on your financial activity.
         </p>
       </div>
 
-      {/* AI Hero */}
+      {/* =====================================
+          ASK NALVION — PRIMARY AI EXPERIENCE
+      ===================================== */}
+
+      <div className="mb-7">
+        <AskNalvion />
+      </div>
+
+      {/* =====================================
+          AI STATUS / HERO
+      ===================================== */}
+
       <div
         className="
-          relative mb-6 overflow-hidden
+          relative
+          mb-6
+          overflow-hidden
           rounded-2xl
           bg-linear-to-br
           from-[#7C3AED]
           via-[#6D28D9]
           to-[#4C1D95]
           p-6
-          shadow-xl shadow-purple-950/30
+          shadow-xl
+          shadow-purple-950/30
           sm:p-8
         "
       >
         <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#C084FC]/20 blur-3xl" />
 
+        <div className="absolute -bottom-24 -left-16 h-48 w-48 rounded-full bg-[#8B5CF6]/20 blur-3xl" />
+
         <div className="relative">
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-xl backdrop-blur-sm">
-            ✦
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-xl text-white backdrop-blur-sm">
+                ✦
+              </div>
+
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-200">
+                Nalvion Intelligence
+              </p>
+
+              <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+                Your finances, understood.
+              </h2>
+
+              <p className="mt-4 text-sm leading-7 text-purple-100">
+                Nalvion analyzes your transactions, budgets, savings goals, and
+                financial patterns to surface information that deserves your
+                attention.
+              </p>
+            </div>
+
+            {/* AI STATUS */}
+
+            <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <span className="flex h-3 w-3">
+                  <span className="absolute h-3 w-3 animate-ping rounded-full bg-[#00D6A3] opacity-75" />
+                  <span className="relative h-3 w-3 rounded-full bg-[#00D6A3]" />
+                </span>
+
+                <span className="text-sm font-medium text-white">
+                  Intelligence active
+                </span>
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-purple-200">
+                {insightStats.total > 0
+                  ? `${insightStats.total} financial observations are currently available.`
+                  : "Add more financial activity to generate deeper insights."}
+              </p>
+            </div>
           </div>
-
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-200">
-            Nalvion Intelligence
-          </p>
-
-          <h2 className="mt-2 max-w-2xl text-2xl font-semibold sm:text-3xl">
-            Financial insights generated from your activity
-          </h2>
-
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-purple-100">
-            Nalvion analyzes your recorded transactions to identify patterns,
-            spending concentration, unusual expenses, and savings opportunities.
-          </p>
         </div>
       </div>
 
-      {/* Summary */}
-      {data?.summary && (
-        <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <InsightSummary
-            label="Income"
-            value={data.summary.totalIncome}
-            type="income"
-          />
+      {/* =====================================
+          FINANCIAL SNAPSHOT
+      ===================================== */}
 
-          <InsightSummary
-            label="Expenses"
-            value={data.summary.totalExpenses}
-            type="expense"
-          />
+      {summary && (
+        <section className="mb-7">
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B5CF6]">
+              Financial snapshot
+            </p>
 
-          <InsightSummary
-            label="Balance"
-            value={data.summary.balance}
-            type="balance"
-          />
-        </div>
+            <h2 className="mt-2 text-xl font-semibold text-[#F8FAFC]">
+              Here's what Nalvion sees
+            </h2>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <InsightSummary
+              label="Income"
+              value={summary.totalIncome}
+              type="income"
+            />
+
+            <InsightSummary
+              label="Expenses"
+              value={summary.totalExpenses}
+              type="expense"
+            />
+
+            <InsightSummary
+              label="Balance"
+              value={summary.balance}
+              type="balance"
+            />
+
+            <InsightSummary
+              label="Savings rate"
+              value={`${Number(summary.savingsRate || 0).toFixed(1)}%`}
+              type="savings"
+              isFormatted
+            />
+          </div>
+        </section>
       )}
 
-      <div className="mb-6 rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5 sm:p-6">
-        <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#8B5CF6]">
-            Financial trends
-          </p>
+      {/* =====================================
+          WHAT NALVION NOTICED
+      ===================================== */}
 
-          <h2 className="mt-2 text-xl font-semibold text-[#F8FAFC]">
-            Income vs expenses
-          </h2>
+      <section className="mb-7">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B5CF6]">
+              AI observations
+            </p>
 
-          <p className="mt-1 text-sm text-[#64748B]">
-            See how your financial activity has changed over time.
-          </p>
-        </div>
+            <h2 className="mt-2 text-xl font-semibold text-[#F8FAFC]">
+              What Nalvion noticed
+            </h2>
 
-        <div className="mb-4 flex items-center gap-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#00D6A3]" />
-            <span className="text-xs text-[#94A3B8]">Income</span>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Important patterns and events detected in your financial activity.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />
-            <span className="text-xs text-[#94A3B8]">Expenses</span>
+          {insightStats.total > 0 && (
+            <span className="w-fit rounded-full border border-[#293754] bg-[#0F172A] px-3 py-1.5 text-xs font-medium text-[#94A3B8]">
+              {insightStats.total}{" "}
+              {insightStats.total === 1 ? "observation" : "observations"}
+            </span>
+          )}
+        </div>
+
+        {data?.insights?.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {data.insights.map((insight, index) => (
+              <InsightCard
+                key={`${insight.title}-${index}`}
+                insight={insight}
+                formatCurrency={formatCurrency}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[#293754] bg-[#0F172A] p-10 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#211A52] text-[#A78BFA]">
+              ✦
+            </div>
+
+            <p className="text-sm font-medium text-[#CBD5E1]">
+              Nalvion needs more data
+            </p>
+
+            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#64748B]">
+              Keep adding transactions, budgets, and goals. Nalvion will use
+              them to generate more meaningful observations.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* =====================================
+          FINANCIAL TRENDS
+      ===================================== */}
+
+      <section className="mb-7 rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5 sm:p-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B5CF6]">
+              Financial trends
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold text-[#F8FAFC]">
+              Income vs expenses
+            </h2>
+
+            <p className="mt-1 text-sm text-[#64748B]">
+              Your historical financial activity.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#00D6A3]" />
+              <span className="text-xs text-[#94A3B8]">Income</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6]" />
+              <span className="text-xs text-[#94A3B8]">Expenses</span>
+            </div>
           </div>
         </div>
 
-        {monthly?.months?.length > 0 ? (
+        {chartData.length > 0 ? (
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={monthly.months}
+                data={chartData}
                 margin={{
                   top: 10,
                   right: 10,
@@ -234,7 +431,7 @@ function AIInsights() {
 
                 <Tooltip
                   formatter={(value, name) => [
-                    `₹${Number(value).toLocaleString("en-IN")}`,
+                    formatCurrency(value),
                     name === "income" ? "Income" : "Expenses",
                   ]}
                   contentStyle={{
@@ -266,108 +463,137 @@ function AIInsights() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="flex h-72 items-center justify-center text-sm text-[#64748B]">
-            Not enough transaction history yet.
+          <div className="flex h-72 items-center justify-center rounded-xl bg-[#070A18]">
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#0F172A] text-[#64748B]">
+                ▥
+              </div>
+
+              <p className="text-sm font-medium text-[#94A3B8]">
+                Not enough transaction history
+              </p>
+
+              <p className="mt-1 text-xs text-[#64748B]">
+                Add more transactions to see your financial trends.
+              </p>
+            </div>
           </div>
         )}
-      </div>
-
-      {data?.insights?.length > 0 && (
-        <section className="mb-8">
-          <div className="mb-5">
-            <h2 className="text-xl font-semibold text-[#F8FAFC]">
-              What Nalvion noticed
-            </h2>
-
-            <p className="mt-1 text-sm text-[#64748B]">
-              Important changes detected in your financial activity.
-            </p>
-          </div>
-        </section>
-      )}
-      {/* Insights */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {data?.insights?.map((insight, index) => (
-          <InsightCard key={`${insight.title}-${index}`} insight={insight} />
-        ))}
-      </div>
-
-      {data?.insights?.length === 0 && (
-        <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] p-8 text-center">
-          <p className="text-sm text-[#94A3B8]">
-            Keep adding transactions and Nalvion will generate more insights.
-          </p>
-        </div>
-      )}
-
-      <AskNalvion />
+      </section>
     </div>
   );
 }
 
-function InsightSummary({
-  label,
-  value,
-  type,
-}) {
+// =============================================
+// SUMMARY CARD
+// =============================================
+
+function InsightSummary({ label, value, type, isFormatted = false }) {
   const iconClass =
     type === "income"
       ? "bg-[#063B3A] text-[#00D6A3]"
       : type === "expense"
         ? "bg-[#3D1833] text-[#F43F5E]"
-        : "bg-[#211A52] text-[#A78BFA]";
+        : type === "savings"
+          ? "bg-[#3D3011] text-[#F59E0B]"
+          : "bg-[#211A52] text-[#A78BFA]";
+
+  const icon =
+    type === "income"
+      ? "↙"
+      : type === "expense"
+        ? "↗"
+        : type === "savings"
+          ? "◎"
+          : "▣";
 
   return (
-    <div className="group rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5">
+    <div className="rounded-2xl border border-[#1E293B] bg-[#0F172A] p-5 transition hover:border-[#293754] hover:bg-[#131D33]">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-[#94A3B8]">
-          {label}
-        </span>
+        <span className="text-sm text-[#94A3B8]">{label}</span>
 
         <span
-          className={`flex h-9 w-9 items-center justify-center group-hover:scale-150 transition-transform duration-200 rounded-lg ${iconClass}`}
+          className={`
+            flex h-9 w-9
+            items-center justify-center
+            rounded-lg
+            ${iconClass}
+          `}
         >
-          {type === "income"
-            ? "↙"
-            : type === "expense"
-              ? "↗"
-              : "▣"}
+          {icon}
         </span>
       </div>
 
-      <p className="mt-3 text-2xl font-bold">
-        ₹{Number(value || 0).toLocaleString("en-IN")}
+      <p className="mt-3 text-2xl font-bold text-[#F8FAFC]">
+        {isFormatted ? value : `₹${Number(value || 0).toLocaleString("en-IN")}`}
       </p>
     </div>
   );
 }
 
-function InsightCard({ insight }) {
+// =============================================
+// INSIGHT CARD
+// =============================================
+
+function InsightCard({ insight, formatCurrency }) {
   const styles = {
     positive: {
       icon: "✓",
       iconClass: "bg-[#063B3A] text-[#00D6A3]",
     },
+
     warning: {
       icon: "!",
       iconClass: "bg-[#3D3011] text-[#F59E0B]",
     },
+
     alert: {
       icon: "!",
       iconClass: "bg-[#3D1833] text-[#F43F5E]",
     },
+
     category: {
       icon: "◈",
       iconClass: "bg-[#211A52] text-[#A78BFA]",
     },
+
     info: {
       icon: "i",
       iconClass: "bg-[#1E293B] text-[#94A3B8]",
     },
+
+    neutral: {
+      icon: "•",
+      iconClass: "bg-[#1E293B] text-[#94A3B8]",
+    },
+
+    "budget-warning": {
+      icon: "!",
+      iconClass: "bg-[#3D1833] text-[#F43F5E]",
+    },
+
+    "budget-alert": {
+      icon: "!",
+      iconClass: "bg-[#3D3011] text-[#F59E0B]",
+    },
+
+    "goal-warning": {
+      icon: "!",
+      iconClass: "bg-[#3D1833] text-[#F43F5E]",
+    },
+
+    "goal-positive": {
+      icon: "✓",
+      iconClass: "bg-[#063B3A] text-[#00D6A3]",
+    },
+
+    "goal-info": {
+      icon: "◎",
+      iconClass: "bg-[#211A52] text-[#A78BFA]",
+    },
   };
 
-  const style =
-    styles[insight.type] || styles.info;
+  const style = styles[insight.type] || styles.info;
 
   return (
     <div
@@ -378,30 +604,55 @@ function InsightCard({ insight }) {
         p-6
         transition
         hover:border-[#293754]
-        hover:bg-[#131D33]
-        hover:scale-102
-      "
+        hover:bg-[#131D33]"
     >
       <div className="flex gap-4">
         <div
           className={`
-            flex h-11 w-11 shrink-0
-            items-center justify-center
-            rounded-xl font-bold
+            flex h-11 w-11
+            shrink-0
+            items-center
+            justify-center
+            rounded-xl
+            font-bold
             ${style.iconClass}
           `}
         >
           {style.icon}
         </div>
 
-        <div>
-          <h3 className="font-semibold text-[#F8FAFC]">
-            {insight.title}
-          </h3>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h3 className="font-semibold text-[#F8FAFC]">{insight.title}</h3>
+
+            {insight.percentage !== undefined && (
+              <span className="rounded-full bg-[#070A18] px-2.5 py-1 text-xs font-semibold text-[#A78BFA]">
+                {insight.percentage}%
+              </span>
+            )}
+          </div>
 
           <p className="mt-2 text-sm leading-6 text-[#94A3B8]">
             {insight.message}
           </p>
+
+          {/* Budget / Goal metadata */}
+
+          {(insight.category || insight.remaining !== undefined) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {insight.category && (
+                <span className="rounded-lg border border-[#1E293B] bg-[#070A18] px-2.5 py-1.5 text-xs text-[#64748B]">
+                  {insight.category}
+                </span>
+              )}
+
+              {insight.remaining !== undefined && (
+                <span className="rounded-lg border border-[#1E293B] bg-[#070A18] px-2.5 py-1.5 text-xs text-[#64748B]">
+                  {formatCurrency(insight.remaining)} remaining
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

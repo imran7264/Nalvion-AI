@@ -1,5 +1,6 @@
 const Transaction = require("../models/Transaction");
 const Budget = require("../models/Budget");
+const Goal = require("../models/Goal");
 
 const formatCurrency = (amount) => {
   return Number(amount || 0).toLocaleString(
@@ -16,6 +17,10 @@ const getFinancialInsights = async (
 ) => {
   try {
     const userId = req.user.userId;
+
+    const goals = await Goal.find({
+      user: userId,
+    });
 
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
@@ -302,6 +307,140 @@ const getFinancialInsights = async (
     }
 
     // =========================================
+    // GOAL ANALYSIS
+    // =========================================
+
+    const goalInsights = [];
+
+    if (goals.length > 0) {
+      goals.forEach((goal) => {
+        const targetAmount = Number(goal.targetAmount) || 0;
+
+        const savedAmount = Number(goal.savedAmount) || 0;
+
+        if (targetAmount <= 0) {
+          return;
+        }
+
+        const remaining = Math.max(targetAmount - savedAmount, 0);
+
+        const percentage = (savedAmount / targetAmount) * 100;
+
+        // =====================================
+        // COMPLETED GOAL
+        // =====================================
+
+        if (percentage >= 100) {
+          goalInsights.push({
+            type: "goal-positive",
+
+            title: `${goal.name} goal completed`,
+
+            message: `You've reached your ${goal.name} goal of ₹${formatCurrency(
+              targetAmount,
+            )}. Great work!`,
+
+            goalId: goal._id,
+
+            percentage: 100,
+          });
+
+          return;
+        }
+
+        // =====================================
+        // GOAL ALMOST COMPLETE
+        // =====================================
+
+        if (percentage >= 80) {
+          goalInsights.push({
+            type: "goal-positive",
+
+            title: `${goal.name} is almost complete`,
+
+            message: `You've saved ${percentage.toFixed(
+              1,
+            )}% of your ${goal.name} goal. Only ₹${formatCurrency(
+              remaining,
+            )} remains.`,
+
+            goalId: goal._id,
+
+            percentage: Number(percentage.toFixed(1)),
+
+            remaining,
+          });
+
+          return;
+        }
+
+        // =====================================
+        // GOAL WITH TARGET DATE
+        // =====================================
+
+        if (goal.targetDate) {
+          const targetDate = new Date(goal.targetDate);
+
+          const today = new Date();
+
+          const daysRemaining = Math.ceil(
+            (targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+          );
+
+          if (daysRemaining > 0) {
+            const monthsRemaining = Math.max(daysRemaining / 30, 1);
+
+            const monthlySaving = remaining / monthsRemaining;
+
+            goalInsights.push({
+              type: "goal-info",
+
+              title: `${goal.name} savings plan`,
+
+              message: `You need to save approximately ₹${formatCurrency(
+                monthlySaving,
+              )} per month to reach your ${goal.name} goal by ${targetDate.toLocaleDateString(
+                "en-IN",
+                {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                },
+              )}.`,
+
+              goalId: goal._id,
+
+              percentage: Number(Math.min(percentage, 100).toFixed(1)),
+
+              remaining,
+
+              monthlySaving: Number(monthlySaving.toFixed(2)),
+            });
+          }
+
+          // ===================================
+          // TARGET DATE PASSED
+          // ===================================
+          else {
+            goalInsights.push({
+              type: "goal-warning",
+
+              title: `${goal.name} target date has passed`,
+
+              message: `Your target date for ${goal.name} has passed and the goal is not yet complete. Consider updating the target date or increasing your savings.`,
+
+              goalId: goal._id,
+
+              percentage: Number(Math.min(percentage, 100).toFixed(1)),
+
+              remaining,
+            });
+          }
+        }
+      });
+    }
+
+    // =========================================
     // 4. UNUSUAL EXPENSE
     // =========================================
 
@@ -373,10 +512,28 @@ const getFinancialInsights = async (
     // =========================================
     // RETURN ONLY 5 INSIGHTS
     // =========================================
-    const combinedInsights = [...budgetInsights, ...insights];
+    const combinedInsights = [...budgetInsights, ...goalInsights, ...insights];
+
+    const priority = {
+      "budget-warning": 1,
+      "goal-warning": 2,
+      warning: 3,
+      alert: 4,
+      "budget-alert": 5,
+      "goal-positive": 6,
+      positive: 7,
+      "goal-info": 8,
+      category: 9,
+      info: 10,
+      neutral: 11,
+    };
+
+const prioritizedInsights = combinedInsights
+  .sort((a, b) => (priority[a.type] || 99) - (priority[b.type] || 99))
+  .slice(0, 5);
 
     res.json({
-      insights: combinedInsights.slice(0, 5),
+      insights: prioritizedInsights,
 
       summary: {
         totalIncome,

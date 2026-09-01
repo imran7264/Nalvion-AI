@@ -558,7 +558,6 @@ const prioritizedInsights = combinedInsights
 const askNalvion = async (req, res) => {
   try {
     const userId = req.user.userId;
-
     const { question } = req.body;
 
     if (!question || !question.trim()) {
@@ -567,23 +566,50 @@ const askNalvion = async (req, res) => {
       });
     }
 
-    const goals = await Goal.find({
-      user: userId,
-    }).sort({ createdAt: -1 });
+    // =========================================
+    // LOAD USER DATA
+    // =========================================
 
-    const transactions = await Transaction.find({
-      user: userId,
-    }).sort({ date: -1 });
+    const [goals, budgets, transactions] = await Promise.all([
+      Goal.find({
+        user: userId,
+      }).sort({ createdAt: -1 }),
 
-    if (transactions.length === 0 && goals.length === 0) {
+      Budget.find({
+        user: userId,
+      }).sort({
+        year: -1,
+        month: -1,
+      }),
+
+      Transaction.find({
+        user: userId,
+      }).sort({ date: -1 }),
+    ]);
+
+    // =========================================
+    // NO TRANSACTIONS
+    // =========================================
+
+    if (transactions.length === 0) {
       return res.json({
         answer:
-          "I don't have enough financial data yet. Add some transactions or create a financial goal and I'll be able to help you.",
+          "I don't have enough financial data yet. Add some income and expense transactions and I'll be able to analyze them for you.",
       });
     }
 
     // =========================================
-    // BASIC FINANCIAL DATA
+    // CURRENT DATE
+    // =========================================
+
+    const now = new Date();
+
+    const currentMonth = now.getMonth() + 1;
+
+    const currentYear = now.getFullYear();
+
+    // =========================================
+    // SEPARATE TRANSACTIONS
     // =========================================
 
     const incomeTransactions = transactions.filter(
@@ -594,19 +620,79 @@ const askNalvion = async (req, res) => {
       (transaction) => transaction.type === "expense",
     );
 
+    // =========================================
+    // TOTAL INCOME
+    // =========================================
+
     const totalIncome = incomeTransactions.reduce(
       (sum, transaction) => sum + (Number(transaction.amount) || 0),
       0,
     );
+
+    // =========================================
+    // TOTAL EXPENSES
+    // =========================================
 
     const totalExpenses = expenseTransactions.reduce(
       (sum, transaction) => sum + (Number(transaction.amount) || 0),
       0,
     );
 
+    // =========================================
+    // BALANCE
+    // =========================================
+
     const balance = totalIncome - totalExpenses;
 
+    // =========================================
+    // SAVINGS RATE
+    // =========================================
+
     const savingsRate = totalIncome > 0 ? (balance / totalIncome) * 100 : 0;
+
+    // =========================================
+    // CURRENT MONTH TRANSACTIONS
+    // =========================================
+
+    const currentMonthTransactions = transactions.filter((transaction) => {
+      const date = new Date(transaction.date);
+
+      return (
+        date.getMonth() + 1 === currentMonth &&
+        date.getFullYear() === currentYear
+      );
+    });
+
+    // =========================================
+    // CURRENT MONTH INCOME
+    // =========================================
+
+    const currentMonthIncome = currentMonthTransactions
+      .filter((transaction) => transaction.type === "income")
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+    // =========================================
+    // CURRENT MONTH EXPENSES
+    // =========================================
+
+    const currentMonthExpenses = currentMonthTransactions
+      .filter((transaction) => transaction.type === "expense")
+      .reduce((sum, transaction) => sum + (Number(transaction.amount) || 0), 0);
+
+    // =========================================
+    // CURRENT MONTH BALANCE
+    // =========================================
+
+    const currentMonthBalance = currentMonthIncome - currentMonthExpenses;
+
+    // =========================================
+    // CURRENT MONTH SAVINGS RATE
+    // =========================================
+
+    const currentMonthSavingsRate =
+      currentMonthIncome > 0
+        ? (currentMonthBalance / currentMonthIncome) * 100
+        : 0;
 
     // =========================================
     // NORMALIZE QUESTION
@@ -615,7 +701,7 @@ const askNalvion = async (req, res) => {
     const normalizedQuestion = question.toLowerCase().trim();
 
     // =========================================
-    // CATEGORY TOTALS
+    // CATEGORY TOTALS - ALL TIME
     // =========================================
 
     const categoryTotals = {};
@@ -632,6 +718,26 @@ const askNalvion = async (req, res) => {
     );
 
     // =========================================
+    // CURRENT MONTH CATEGORY TOTALS
+    // =========================================
+
+    const currentMonthCategoryTotals = {};
+
+    currentMonthTransactions
+      .filter((transaction) => transaction.type === "expense")
+      .forEach((transaction) => {
+        const category = transaction.category || "Other";
+
+        currentMonthCategoryTotals[category] =
+          (currentMonthCategoryTotals[category] || 0) +
+          (Number(transaction.amount) || 0);
+      });
+
+    const currentMonthCategories = Object.entries(
+      currentMonthCategoryTotals,
+    ).sort((a, b) => b[1] - a[1]);
+
+    // =========================================
     // BIGGEST EXPENSE
     // =========================================
 
@@ -640,6 +746,21 @@ const askNalvion = async (req, res) => {
         ? [...expenseTransactions].sort(
             (a, b) => Number(b.amount) - Number(a.amount),
           )[0]
+        : null;
+
+    // =========================================
+    // BIGGEST CURRENT MONTH EXPENSE
+    // =========================================
+
+    const biggestCurrentMonthExpense =
+      currentMonthTransactions.filter(
+        (transaction) => transaction.type === "expense",
+      ).length > 0
+        ? [
+            ...currentMonthTransactions.filter(
+              (transaction) => transaction.type === "expense",
+            ),
+          ].sort((a, b) => Number(b.amount) - Number(a.amount))[0]
         : null;
 
     // =========================================
@@ -667,97 +788,178 @@ const askNalvion = async (req, res) => {
       };
     });
 
+    // =========================================
+    // MATCH GOAL
+    // =========================================
+
     const matchedGoal = goalData.find((goal) =>
       normalizedQuestion.includes(goal.name.toLowerCase()),
     );
 
     // =========================================
-    // QUESTION: TOTAL SPENDING
+    // CURRENT MONTH BUDGETS
     // =========================================
 
-    if (
-      normalizedQuestion.includes("how much did i spend") ||
-      normalizedQuestion.includes("total spending") ||
-      normalizedQuestion.includes("total expenses") ||
-      normalizedQuestion.includes("how much have i spent")
-    ) {
-      return res.json({
-        answer: `You've recorded total expenses of ₹${formatCurrency(
-          totalExpenses,
-        )}.`,
-      });
-    }
+    const currentBudgets = budgets.filter(
+      (budget) =>
+        Number(budget.month) === currentMonth &&
+        Number(budget.year) === currentYear,
+    );
 
     // =========================================
-    // QUESTION: TOTAL INCOME
+    // BUDGET DATA
     // =========================================
 
-    if (
-      normalizedQuestion.includes("how much did i earn") ||
-      normalizedQuestion.includes("total income") ||
-      normalizedQuestion.includes("my income")
-    ) {
-      return res.json({
-        answer: `You've recorded total income of ₹${formatCurrency(
-          totalIncome,
-        )}.`,
-      });
-    }
+    const budgetData = currentBudgets.map((budget) => {
+      const amount = Number(budget.amount) || 0;
+
+      const spent = Number(currentMonthCategoryTotals[budget.category]) || 0;
+
+      const remaining = Math.max(amount - spent, 0);
+
+      const percentage = amount > 0 ? (spent / amount) * 100 : 0;
+
+      return {
+        id: budget._id,
+        category: budget.category,
+        budget: amount,
+        spent,
+        remaining,
+        percentage,
+      };
+    });
 
     // =========================================
-    // QUESTION: BALANCE
+    // MATCH BUDGET CATEGORY
     // =========================================
 
-    if (
-      normalizedQuestion.includes("my balance") ||
-      normalizedQuestion.includes("how much money do i have") ||
-      normalizedQuestion.includes("am i in the positive")
-    ) {
-      if (balance >= 0) {
-        return res.json({
-          answer: `Your recorded income is currently ₹${formatCurrency(
-            balance,
-          )} higher than your expenses.`,
-        });
-      }
-
-      return res.json({
-        answer: `Your recorded expenses are currently ₹${formatCurrency(
-          Math.abs(balance),
-        )} higher than your income.`,
-      });
-    }
+    const matchedBudget = budgetData.find((budget) =>
+      normalizedQuestion.includes(budget.category.toLowerCase()),
+    );
 
     // =========================================
-    // QUESTION: SAVINGS
+    // MONTH NAMES
     // =========================================
 
-    if (
-      normalizedQuestion.includes("saving") ||
-      normalizedQuestion.includes("savings rate")
-    ) {
-      if (savingsRate < 0) {
-        return res.json({
-          answer: `Your current savings rate is ${Math.abs(savingsRate).toFixed(
-            1,
-          )}% negative because your expenses are higher than your income.`,
-        });
-      }
-
-      return res.json({
-        answer: `Your current savings rate is approximately ${savingsRate.toFixed(
-          1,
-        )}%. You've kept ₹${formatCurrency(
-          balance,
-        )} after your recorded expenses.`,
-      });
-    }
+    const currentMonthName = now.toLocaleDateString("en-IN", {
+      month: "long",
+    });
 
     // =========================================
-    // QUESTION: SPECIFIC GOAL
+    // 1. SPECIFIC GOAL QUESTIONS
     // =========================================
 
     if (matchedGoal) {
+      // ---------------------------------------
+      // GOAL TARGET DATE
+      // ---------------------------------------
+
+      if (
+        normalizedQuestion.includes("when") &&
+        (normalizedQuestion.includes("due") ||
+          normalizedQuestion.includes("date") ||
+          normalizedQuestion.includes("deadline"))
+      ) {
+        if (!matchedGoal.targetDate) {
+          return res.json({
+            answer: `Your ${matchedGoal.name} goal doesn't have a target date yet.`,
+          });
+        }
+
+        const targetDate = new Date(matchedGoal.targetDate);
+
+        return res.json({
+          answer: `Your ${matchedGoal.name} goal is targeted for ${targetDate.toLocaleDateString(
+            "en-IN",
+            {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            },
+          )}.`,
+        });
+      }
+
+      // ---------------------------------------
+      // DAYS REMAINING
+      // ---------------------------------------
+
+      if (
+        normalizedQuestion.includes("days") &&
+        (normalizedQuestion.includes("left") ||
+          normalizedQuestion.includes("remaining"))
+      ) {
+        if (!matchedGoal.targetDate) {
+          return res.json({
+            answer: `Your ${matchedGoal.name} goal doesn't have a target date, so I can't calculate the remaining days.`,
+          });
+        }
+
+        const targetDate = new Date(matchedGoal.targetDate);
+
+        const daysRemaining = Math.ceil(
+          (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        if (daysRemaining <= 0) {
+          return res.json({
+            answer: `The target date for your ${matchedGoal.name} goal has passed.`,
+          });
+        }
+
+        return res.json({
+          answer: `You have approximately ${daysRemaining} days remaining to reach your ${matchedGoal.name} goal.`,
+        });
+      }
+
+      // ---------------------------------------
+      // MONTHLY SAVING REQUIRED
+      // ---------------------------------------
+
+      if (
+        normalizedQuestion.includes("per month") ||
+        normalizedQuestion.includes("monthly") ||
+        normalizedQuestion.includes("each month")
+      ) {
+        if (!matchedGoal.targetDate) {
+          return res.json({
+            answer: `Your ${matchedGoal.name} goal doesn't have a target date, so I can't calculate a monthly saving requirement.`,
+          });
+        }
+
+        if (matchedGoal.remaining === 0) {
+          return res.json({
+            answer: `You've already reached your ${matchedGoal.name} goal. 🎉`,
+          });
+        }
+
+        const targetDate = new Date(matchedGoal.targetDate);
+
+        const daysRemaining = Math.ceil(
+          (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        if (daysRemaining <= 0) {
+          return res.json({
+            answer: `The target date for your ${matchedGoal.name} goal has already passed.`,
+          });
+        }
+
+        const monthsRemaining = Math.max(daysRemaining / 30, 1);
+
+        const monthlySaving = matchedGoal.remaining / monthsRemaining;
+
+        return res.json({
+          answer: `To reach your ${matchedGoal.name} goal by the target date, you need to save approximately ₹${formatCurrency(
+            monthlySaving,
+          )} per month.`,
+        });
+      }
+
+      // ---------------------------------------
+      // GOAL PROGRESS
+      // ---------------------------------------
+
       if (
         normalizedQuestion.includes("progress") ||
         normalizedQuestion.includes("saved") ||
@@ -773,6 +975,10 @@ const askNalvion = async (req, res) => {
           )} target, with ₹${formatCurrency(matchedGoal.remaining)} remaining.`,
         });
       }
+
+      // ---------------------------------------
+      // GOAL COMPLETE
+      // ---------------------------------------
 
       if (
         normalizedQuestion.includes("complete") ||
@@ -794,6 +1000,10 @@ const askNalvion = async (req, res) => {
         });
       }
 
+      // ---------------------------------------
+      // GOAL STATUS
+      // ---------------------------------------
+
       return res.json({
         answer: `Your ${matchedGoal.name} goal is currently ${matchedGoal.percentage.toFixed(
           1,
@@ -804,7 +1014,7 @@ const askNalvion = async (req, res) => {
     }
 
     // =========================================
-    // QUESTION: MY GOALS
+    // 2. MY GOALS
     // =========================================
 
     if (
@@ -831,7 +1041,7 @@ const askNalvion = async (req, res) => {
     }
 
     // =========================================
-    // QUESTION: GOAL PROGRESS
+    // 3. GOAL PROGRESS
     // =========================================
 
     if (
@@ -862,7 +1072,7 @@ const askNalvion = async (req, res) => {
     }
 
     // =========================================
-    // QUESTION: GOAL REMAINING
+    // 4. GOAL REMAINING
     // =========================================
 
     if (
@@ -894,7 +1104,314 @@ const askNalvion = async (req, res) => {
     }
 
     // =========================================
-    // QUESTION: BIGGEST EXPENSE
+    // 5. BUDGET QUESTIONS
+    // =========================================
+
+    if (normalizedQuestion.includes("budget")) {
+      // ---------------------------------------
+      // NO BUDGETS
+      // ---------------------------------------
+
+      if (budgetData.length === 0) {
+        return res.json({
+          answer: `You don't have any budgets set for ${currentMonthName} yet. Create a budget to let me track your spending against it.`,
+        });
+      }
+
+      // ---------------------------------------
+      // SPECIFIC CATEGORY BUDGET
+      // ---------------------------------------
+
+      if (matchedBudget) {
+        const budget = matchedBudget;
+
+        if (
+          normalizedQuestion.includes("remaining") ||
+          normalizedQuestion.includes("left")
+        ) {
+          if (budget.remaining === 0) {
+            return res.json({
+              answer: `You've used your entire ${budget.category} budget of ₹${formatCurrency(
+                budget.budget,
+              )}.`,
+            });
+          }
+
+          return res.json({
+            answer: `You have ₹${formatCurrency(
+              budget.remaining,
+            )} remaining in your ${budget.category} budget this month.`,
+          });
+        }
+
+        if (
+          normalizedQuestion.includes("over") ||
+          normalizedQuestion.includes("exceed")
+        ) {
+          if (budget.spent > budget.budget) {
+            const exceededBy = budget.spent - budget.budget;
+
+            return res.json({
+              answer: `Yes. You've exceeded your ${budget.category} budget by ₹${formatCurrency(
+                exceededBy,
+              )}. You've spent ₹${formatCurrency(
+                budget.spent,
+              )} against a ₹${formatCurrency(budget.budget)} budget.`,
+            });
+          }
+
+          return res.json({
+            answer: `No. Your ${budget.category} spending is currently within budget. You've used ${budget.percentage.toFixed(
+              1,
+            )}% of your budget.`,
+          });
+        }
+
+        return res.json({
+          answer: `You've spent ₹${formatCurrency(
+            budget.spent,
+          )} of your ₹${formatCurrency(
+            budget.budget,
+          )} ${budget.category} budget this month. That's ${budget.percentage.toFixed(
+            1,
+          )}% of the budget.`,
+        });
+      }
+
+      // ---------------------------------------
+      // OVERALL BUDGET
+      // ---------------------------------------
+
+      if (
+        normalizedQuestion.includes("over budget") ||
+        normalizedQuestion.includes("exceeded")
+      ) {
+        const exceeded = budgetData.filter(
+          (budget) => budget.spent > budget.budget,
+        );
+
+        if (exceeded.length === 0) {
+          return res.json({
+            answer:
+              "You're currently within all of your category budgets this month.",
+          });
+        }
+
+        const list = exceeded
+          .map(
+            (budget) =>
+              `${budget.category} by ₹${formatCurrency(
+                budget.spent - budget.budget,
+              )}`,
+          )
+          .join(", ");
+
+        return res.json({
+          answer: `You've exceeded these budgets this month: ${list}.`,
+        });
+      }
+
+      // ---------------------------------------
+      // BUDGET STATUS
+      // ---------------------------------------
+
+      const budgetList = budgetData
+        .map(
+          (budget) =>
+            `${budget.category}: ₹${formatCurrency(
+              budget.spent,
+            )} / ₹${formatCurrency(budget.budget)} (${budget.percentage.toFixed(
+              1,
+            )}%)`,
+        )
+        .join(", ");
+
+      return res.json({
+        answer: `Your ${currentMonthName} budget status is: ${budgetList}.`,
+      });
+    }
+
+    // =========================================
+    // 6. CURRENT MONTH SPENDING
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("this month") &&
+      (normalizedQuestion.includes("spend") ||
+        normalizedQuestion.includes("expense"))
+    ) {
+      return res.json({
+        answer: `You've spent ₹${formatCurrency(
+          currentMonthExpenses,
+        )} so far in ${currentMonthName}.`,
+      });
+    }
+
+    // =========================================
+    // 7. CURRENT MONTH INCOME
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("this month") &&
+      (normalizedQuestion.includes("income") ||
+        normalizedQuestion.includes("earn") ||
+        normalizedQuestion.includes("earned"))
+    ) {
+      return res.json({
+        answer: `You've recorded ₹${formatCurrency(
+          currentMonthIncome,
+        )} of income so far in ${currentMonthName}.`,
+      });
+    }
+
+    // =========================================
+    // 8. CURRENT MONTH SAVINGS
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("this month") &&
+      (normalizedQuestion.includes("saving") ||
+        normalizedQuestion.includes("saved"))
+    ) {
+      return res.json({
+        answer: `You've currently saved ₹${formatCurrency(
+          currentMonthBalance,
+        )} in ${currentMonthName}, which is a savings rate of ${currentMonthSavingsRate.toFixed(
+          1,
+        )}%.`,
+      });
+    }
+
+    // =========================================
+    // 9. MONTHLY SPENDING CATEGORY
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("this month") &&
+      (normalizedQuestion.includes("where") ||
+        normalizedQuestion.includes("spend most"))
+    ) {
+      if (currentMonthCategories.length === 0) {
+        return res.json({
+          answer: `You don't have any recorded expenses for ${currentMonthName} yet.`,
+        });
+      }
+
+      const [topCategory, topAmount] = currentMonthCategories[0];
+
+      return res.json({
+        answer: `This month, you are spending the most on ${topCategory}, with ₹${formatCurrency(
+          topAmount,
+        )} recorded.`,
+      });
+    }
+
+    // =========================================
+    // 10. MONTHLY BIGGEST EXPENSE
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("this month") &&
+      (normalizedQuestion.includes("biggest expense") ||
+        normalizedQuestion.includes("largest expense"))
+    ) {
+      if (!biggestCurrentMonthExpense) {
+        return res.json({
+          answer: `You don't have any recorded expenses for ${currentMonthName} yet.`,
+        });
+      }
+
+      return res.json({
+        answer: `Your biggest expense this month is ₹${formatCurrency(
+          biggestCurrentMonthExpense.amount,
+        )} in the ${biggestCurrentMonthExpense.category || "Other"} category.`,
+      });
+    }
+
+    // =========================================
+    // 11. TOTAL SPENDING
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("how much did i spend") ||
+      normalizedQuestion.includes("total spending") ||
+      normalizedQuestion.includes("total expenses") ||
+      normalizedQuestion.includes("how much have i spent")
+    ) {
+      return res.json({
+        answer: `You've recorded total expenses of ₹${formatCurrency(
+          totalExpenses,
+        )}.`,
+      });
+    }
+
+    // =========================================
+    // 12. TOTAL INCOME
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("how much did i earn") ||
+      normalizedQuestion.includes("total income") ||
+      normalizedQuestion.includes("my income")
+    ) {
+      return res.json({
+        answer: `You've recorded total income of ₹${formatCurrency(
+          totalIncome,
+        )}.`,
+      });
+    }
+
+    // =========================================
+    // 13. BALANCE
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("my balance") ||
+      normalizedQuestion.includes("how much money do i have") ||
+      normalizedQuestion.includes("am i in the positive")
+    ) {
+      if (balance >= 0) {
+        return res.json({
+          answer: `Your recorded income is currently ₹${formatCurrency(
+            balance,
+          )} higher than your expenses.`,
+        });
+      }
+
+      return res.json({
+        answer: `Your recorded expenses are currently ₹${formatCurrency(
+          Math.abs(balance),
+        )} higher than your income.`,
+      });
+    }
+
+    // =========================================
+    // 14. SAVINGS
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("saving") ||
+      normalizedQuestion.includes("savings rate")
+    ) {
+      if (savingsRate < 0) {
+        return res.json({
+          answer: `Your current savings rate is ${Math.abs(savingsRate).toFixed(
+            1,
+          )}% negative because your expenses are higher than your income.`,
+        });
+      }
+
+      return res.json({
+        answer: `Your current savings rate is approximately ${savingsRate.toFixed(
+          1,
+        )}%. You've kept ₹${formatCurrency(
+          balance,
+        )} after your recorded expenses.`,
+      });
+    }
+
+    // =========================================
+    // 15. BIGGEST EXPENSE
     // =========================================
 
     if (
@@ -911,12 +1428,55 @@ const askNalvion = async (req, res) => {
       return res.json({
         answer: `Your biggest recorded expense is ₹${formatCurrency(
           biggestExpense.amount,
-        )} in the ${biggestExpense.category} category.`,
+        )} in the ${biggestExpense.category || "Other"} category.`,
       });
     }
 
     // =========================================
-    // CATEGORY QUESTIONS
+    // 16. UNUSUAL EXPENSE
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("unusual") ||
+      normalizedQuestion.includes("abnormal") ||
+      normalizedQuestion.includes("unexpected expense") ||
+      normalizedQuestion.includes("large expense")
+    ) {
+      if (expenseTransactions.length < 2) {
+        return res.json({
+          answer:
+            "I don't have enough expense history yet to identify an unusual expense.",
+        });
+      }
+
+      const averageExpense = totalExpenses / expenseTransactions.length;
+
+      const unusualExpense = [...expenseTransactions]
+        .sort((a, b) => Number(b.amount) - Number(a.amount))
+        .find(
+          (transaction) => Number(transaction.amount) >= averageExpense * 3,
+        );
+
+      if (!unusualExpense) {
+        return res.json({
+          answer:
+            "I don't currently see an expense that is significantly higher than your average recorded expense.",
+        });
+      }
+
+      return res.json({
+        answer: `I found an unusual expense of ₹${formatCurrency(
+          unusualExpense.amount,
+        )} in the ${
+          unusualExpense.category || "Other"
+        } category. That's significantly higher than your average expense of approximately ₹${formatCurrency(
+          averageExpense,
+        )}.`,
+      });
+    }
+
+    // =========================================
+    // 17. CATEGORY QUESTIONS
     // =========================================
 
     const matchedCategory = categories.find(([category]) =>
@@ -938,7 +1498,7 @@ const askNalvion = async (req, res) => {
     }
 
     // =========================================
-    // QUESTION: WHERE DO I SPEND MOST?
+    // 18. WHERE DO I SPEND MOST?
     // =========================================
 
     if (
@@ -964,7 +1524,7 @@ const askNalvion = async (req, res) => {
     }
 
     // =========================================
-    // QUESTION: REDUCE SPENDING
+    // 19. REDUCE SPENDING
     // =========================================
 
     if (
@@ -995,17 +1555,13 @@ const askNalvion = async (req, res) => {
 
     return res.json({
       answer:
-        'I can help you understand your income, expenses, savings, biggest spending categories, and unusual transactions. Try asking me something like "How much did I spend on Shopping?"',
+        'I can help you understand your income, expenses, savings, budgets, goals, spending patterns, and unusual transactions. Try asking something like "How much did I spend this month?", "Am I over budget?", or "How much do I need to save for my laptop goal?"',
     });
   } catch (error) {
-    console.error(
-      "Ask Nalvion error:",
-      error
-    );
+    console.error("Ask Nalvion error:", error);
 
     res.status(500).json({
-      message:
-        "Unable to answer your question.",
+      message: "Unable to answer your question.",
     });
   }
 };

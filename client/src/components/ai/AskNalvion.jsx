@@ -4,7 +4,7 @@ import { askNalvion } from "../../services/aiService";
 const suggestedQuestions = [
   "Where do I spend the most?",
   "Am I saving enough?",
-  "What is my biggest expense?",
+  "What are my financial goals?",
   "How can I reduce my spending?",
 ];
 

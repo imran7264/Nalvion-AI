@@ -567,14 +567,18 @@ const askNalvion = async (req, res) => {
       });
     }
 
+    const goals = await Goal.find({
+      user: userId,
+    }).sort({ createdAt: -1 });
+
     const transactions = await Transaction.find({
       user: userId,
     }).sort({ date: -1 });
 
-    if (transactions.length === 0) {
+    if (transactions.length === 0 && goals.length === 0) {
       return res.json({
         answer:
-          "I don't have enough financial data yet. Add some income and expense transactions and I'll be able to analyze them for you.",
+          "I don't have enough financial data yet. Add some transactions or create a financial goal and I'll be able to help you.",
       });
     }
 
@@ -582,48 +586,33 @@ const askNalvion = async (req, res) => {
     // BASIC FINANCIAL DATA
     // =========================================
 
-    const incomeTransactions =
-      transactions.filter(
-        (transaction) =>
-          transaction.type === "income"
-      );
+    const incomeTransactions = transactions.filter(
+      (transaction) => transaction.type === "income",
+    );
 
-    const expenseTransactions =
-      transactions.filter(
-        (transaction) =>
-          transaction.type === "expense"
-      );
+    const expenseTransactions = transactions.filter(
+      (transaction) => transaction.type === "expense",
+    );
 
-    const totalIncome =
-      incomeTransactions.reduce(
-        (sum, transaction) =>
-          sum +
-          (Number(transaction.amount) || 0),
-        0
-      );
+    const totalIncome = incomeTransactions.reduce(
+      (sum, transaction) => sum + (Number(transaction.amount) || 0),
+      0,
+    );
 
-    const totalExpenses =
-      expenseTransactions.reduce(
-        (sum, transaction) =>
-          sum +
-          (Number(transaction.amount) || 0),
-        0
-      );
+    const totalExpenses = expenseTransactions.reduce(
+      (sum, transaction) => sum + (Number(transaction.amount) || 0),
+      0,
+    );
 
-    const balance =
-      totalIncome - totalExpenses;
+    const balance = totalIncome - totalExpenses;
 
-    const savingsRate =
-      totalIncome > 0
-        ? (balance / totalIncome) * 100
-        : 0;
+    const savingsRate = totalIncome > 0 ? (balance / totalIncome) * 100 : 0;
 
     // =========================================
     // NORMALIZE QUESTION
     // =========================================
 
-    const normalizedQuestion =
-      question.toLowerCase().trim();
+    const normalizedQuestion = question.toLowerCase().trim();
 
     // =========================================
     // CATEGORY TOTALS
@@ -631,22 +620,15 @@ const askNalvion = async (req, res) => {
 
     const categoryTotals = {};
 
-    expenseTransactions.forEach(
-      (transaction) => {
-        const category =
-          transaction.category ||
-          "Other";
+    expenseTransactions.forEach((transaction) => {
+      const category = transaction.category || "Other";
 
-        categoryTotals[category] =
-          (categoryTotals[category] || 0) +
-          (Number(transaction.amount) || 0);
-      }
-    );
+      categoryTotals[category] =
+        (categoryTotals[category] || 0) + (Number(transaction.amount) || 0);
+    });
 
-    const categories = Object.entries(
-      categoryTotals
-    ).sort(
-      (a, b) => b[1] - a[1]
+    const categories = Object.entries(categoryTotals).sort(
+      (a, b) => b[1] - a[1],
     );
 
     // =========================================
@@ -656,33 +638,52 @@ const askNalvion = async (req, res) => {
     const biggestExpense =
       expenseTransactions.length > 0
         ? [...expenseTransactions].sort(
-            (a, b) =>
-              Number(b.amount) -
-              Number(a.amount)
+            (a, b) => Number(b.amount) - Number(a.amount),
           )[0]
         : null;
+
+    // =========================================
+    // GOAL DATA
+    // =========================================
+
+    const goalData = goals.map((goal) => {
+      const targetAmount = Number(goal.targetAmount) || 0;
+
+      const savedAmount = Number(goal.savedAmount) || 0;
+
+      const remaining = Math.max(targetAmount - savedAmount, 0);
+
+      const percentage =
+        targetAmount > 0 ? (savedAmount / targetAmount) * 100 : 0;
+
+      return {
+        id: goal._id,
+        name: goal.name,
+        targetAmount,
+        savedAmount,
+        remaining,
+        percentage: Math.min(percentage, 100),
+        targetDate: goal.targetDate,
+      };
+    });
+
+    const matchedGoal = goalData.find((goal) =>
+      normalizedQuestion.includes(goal.name.toLowerCase()),
+    );
 
     // =========================================
     // QUESTION: TOTAL SPENDING
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "how much did i spend"
-      ) ||
-      normalizedQuestion.includes(
-        "total spending"
-      ) ||
-      normalizedQuestion.includes(
-        "total expenses"
-      ) ||
-      normalizedQuestion.includes(
-        "how much have i spent"
-      )
+      normalizedQuestion.includes("how much did i spend") ||
+      normalizedQuestion.includes("total spending") ||
+      normalizedQuestion.includes("total expenses") ||
+      normalizedQuestion.includes("how much have i spent")
     ) {
       return res.json({
         answer: `You've recorded total expenses of ₹${formatCurrency(
-          totalExpenses
+          totalExpenses,
         )}.`,
       });
     }
@@ -692,19 +693,13 @@ const askNalvion = async (req, res) => {
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "how much did i earn"
-      ) ||
-      normalizedQuestion.includes(
-        "total income"
-      ) ||
-      normalizedQuestion.includes(
-        "my income"
-      )
+      normalizedQuestion.includes("how much did i earn") ||
+      normalizedQuestion.includes("total income") ||
+      normalizedQuestion.includes("my income")
     ) {
       return res.json({
         answer: `You've recorded total income of ₹${formatCurrency(
-          totalIncome
+          totalIncome,
         )}.`,
       });
     }
@@ -714,27 +709,21 @@ const askNalvion = async (req, res) => {
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "my balance"
-      ) ||
-      normalizedQuestion.includes(
-        "how much money do i have"
-      ) ||
-      normalizedQuestion.includes(
-        "am i in the positive"
-      )
+      normalizedQuestion.includes("my balance") ||
+      normalizedQuestion.includes("how much money do i have") ||
+      normalizedQuestion.includes("am i in the positive")
     ) {
       if (balance >= 0) {
         return res.json({
           answer: `Your recorded income is currently ₹${formatCurrency(
-            balance
+            balance,
           )} higher than your expenses.`,
         });
       }
 
       return res.json({
         answer: `Your recorded expenses are currently ₹${formatCurrency(
-          Math.abs(balance)
+          Math.abs(balance),
         )} higher than your income.`,
       });
     }
@@ -744,29 +733,163 @@ const askNalvion = async (req, res) => {
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "saving"
-      ) ||
-      normalizedQuestion.includes(
-        "savings rate"
-      )
+      normalizedQuestion.includes("saving") ||
+      normalizedQuestion.includes("savings rate")
     ) {
       if (savingsRate < 0) {
         return res.json({
-          answer: `Your current savings rate is ${Math.abs(
-            savingsRate
-          ).toFixed(
-            1
+          answer: `Your current savings rate is ${Math.abs(savingsRate).toFixed(
+            1,
           )}% negative because your expenses are higher than your income.`,
         });
       }
 
       return res.json({
         answer: `Your current savings rate is approximately ${savingsRate.toFixed(
-          1
+          1,
         )}%. You've kept ₹${formatCurrency(
-          balance
+          balance,
         )} after your recorded expenses.`,
+      });
+    }
+
+    // =========================================
+    // QUESTION: SPECIFIC GOAL
+    // =========================================
+
+    if (matchedGoal) {
+      if (
+        normalizedQuestion.includes("progress") ||
+        normalizedQuestion.includes("saved") ||
+        normalizedQuestion.includes("saving")
+      ) {
+        return res.json({
+          answer: `Your ${matchedGoal.name} goal is ${matchedGoal.percentage.toFixed(
+            1,
+          )}% complete. You've saved ₹${formatCurrency(
+            matchedGoal.savedAmount,
+          )} of your ₹${formatCurrency(
+            matchedGoal.targetAmount,
+          )} target, with ₹${formatCurrency(matchedGoal.remaining)} remaining.`,
+        });
+      }
+
+      if (
+        normalizedQuestion.includes("complete") ||
+        normalizedQuestion.includes("finished") ||
+        normalizedQuestion.includes("reached")
+      ) {
+        if (matchedGoal.remaining === 0) {
+          return res.json({
+            answer: `Yes! You've completed your ${matchedGoal.name} goal. 🎉`,
+          });
+        }
+
+        return res.json({
+          answer: `Your ${matchedGoal.name} goal is ${matchedGoal.percentage.toFixed(
+            1,
+          )}% complete. You still need ₹${formatCurrency(
+            matchedGoal.remaining,
+          )} to reach it.`,
+        });
+      }
+
+      return res.json({
+        answer: `Your ${matchedGoal.name} goal is currently ${matchedGoal.percentage.toFixed(
+          1,
+        )}% complete, with ₹${formatCurrency(
+          matchedGoal.remaining,
+        )} remaining.`,
+      });
+    }
+
+    // =========================================
+    // QUESTION: MY GOALS
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("my goals") ||
+      normalizedQuestion.includes("my financial goals") ||
+      normalizedQuestion.includes("what goals")
+    ) {
+      if (goalData.length === 0) {
+        return res.json({
+          answer:
+            "You haven't created any financial goals yet. Create a goal and I'll help you track your progress toward it.",
+        });
+      }
+
+      const goalList = goalData
+        .map((goal) => `${goal.name} (${goal.percentage.toFixed(1)}% complete)`)
+        .join(", ");
+
+      return res.json({
+        answer: `You currently have ${goalData.length} financial ${
+          goalData.length === 1 ? "goal" : "goals"
+        }: ${goalList}.`,
+      });
+    }
+
+    // =========================================
+    // QUESTION: GOAL PROGRESS
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("goal progress") ||
+      normalizedQuestion.includes("how much have i saved for") ||
+      normalizedQuestion.includes("how much have i saved toward") ||
+      normalizedQuestion.includes("how much have i saved towards")
+    ) {
+      if (goalData.length === 0) {
+        return res.json({
+          answer: "You don't have any financial goals yet.",
+        });
+      }
+
+      const goal = goalData[0];
+
+      return res.json({
+        answer: `For your ${goal.name} goal, you've saved ₹${formatCurrency(
+          goal.savedAmount,
+        )} out of ₹${formatCurrency(
+          goal.targetAmount,
+        )}. You're ${goal.percentage.toFixed(
+          1,
+        )}% of the way there, with ₹${formatCurrency(
+          goal.remaining,
+        )} remaining.`,
+      });
+    }
+
+    // =========================================
+    // QUESTION: GOAL REMAINING
+    // =========================================
+
+    if (
+      normalizedQuestion.includes("how much more do i need") ||
+      normalizedQuestion.includes("how much more do i need to save") ||
+      normalizedQuestion.includes("how much is left for my goal")
+    ) {
+      if (goalData.length === 0) {
+        return res.json({
+          answer: "You don't have any financial goals yet.",
+        });
+      }
+
+      const goal = goalData[0];
+
+      if (goal.remaining === 0) {
+        return res.json({
+          answer: `You've already reached your ${goal.name} goal of ₹${formatCurrency(
+            goal.targetAmount,
+          )}. 🎉`,
+        });
+      }
+
+      return res.json({
+        answer: `You need another ₹${formatCurrency(
+          goal.remaining,
+        )} to reach your ${goal.name} goal.`,
       });
     }
 
@@ -775,26 +898,19 @@ const askNalvion = async (req, res) => {
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "biggest expense"
-      ) ||
-      normalizedQuestion.includes(
-        "largest expense"
-      ) ||
-      normalizedQuestion.includes(
-        "most expensive"
-      )
+      normalizedQuestion.includes("biggest expense") ||
+      normalizedQuestion.includes("largest expense") ||
+      normalizedQuestion.includes("most expensive")
     ) {
       if (!biggestExpense) {
         return res.json({
-          answer:
-            "You don't have any recorded expenses yet.",
+          answer: "You don't have any recorded expenses yet.",
         });
       }
 
       return res.json({
         answer: `Your biggest recorded expense is ₹${formatCurrency(
-          biggestExpense.amount
+          biggestExpense.amount,
         )} in the ${biggestExpense.category} category.`,
       });
     }
@@ -803,29 +919,20 @@ const askNalvion = async (req, res) => {
     // CATEGORY QUESTIONS
     // =========================================
 
-    const matchedCategory =
-      categories.find(([category]) =>
-        normalizedQuestion.includes(
-          category.toLowerCase()
-        )
-      );
+    const matchedCategory = categories.find(([category]) =>
+      normalizedQuestion.includes(category.toLowerCase()),
+    );
 
     if (matchedCategory) {
-      const [
-        category,
-        amount,
-      ] = matchedCategory;
+      const [category, amount] = matchedCategory;
 
-      const percentage =
-        totalExpenses > 0
-          ? (amount / totalExpenses) * 100
-          : 0;
+      const percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0;
 
       return res.json({
         answer: `You've spent ₹${formatCurrency(
-          amount
+          amount,
         )} on ${category}. That's approximately ${percentage.toFixed(
-          1
+          1,
         )}% of your recorded expenses.`,
       });
     }
@@ -835,18 +942,10 @@ const askNalvion = async (req, res) => {
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "where do i spend"
-      ) ||
-      normalizedQuestion.includes(
-        "where am i spending"
-      ) ||
-      normalizedQuestion.includes(
-        "spend the most"
-      ) ||
-      normalizedQuestion.includes(
-        "most of my money"
-      )
+      normalizedQuestion.includes("where do i spend") ||
+      normalizedQuestion.includes("where am i spending") ||
+      normalizedQuestion.includes("spend the most") ||
+      normalizedQuestion.includes("most of my money")
     ) {
       if (categories.length === 0) {
         return res.json({
@@ -855,14 +954,11 @@ const askNalvion = async (req, res) => {
         });
       }
 
-      const [
-        topCategory,
-        topAmount,
-      ] = categories[0];
+      const [topCategory, topAmount] = categories[0];
 
       return res.json({
         answer: `You spend the most on ${topCategory}, with ₹${formatCurrency(
-          topAmount
+          topAmount,
         )} recorded.`,
       });
     }
@@ -872,18 +968,10 @@ const askNalvion = async (req, res) => {
     // =========================================
 
     if (
-      normalizedQuestion.includes(
-        "reduce my spending"
-      ) ||
-      normalizedQuestion.includes(
-        "save more"
-      ) ||
-      normalizedQuestion.includes(
-        "cut my spending"
-      ) ||
-      normalizedQuestion.includes(
-        "where can i reduce"
-      )
+      normalizedQuestion.includes("reduce my spending") ||
+      normalizedQuestion.includes("save more") ||
+      normalizedQuestion.includes("cut my spending") ||
+      normalizedQuestion.includes("where can i reduce")
     ) {
       if (categories.length === 0) {
         return res.json({
@@ -892,14 +980,11 @@ const askNalvion = async (req, res) => {
         });
       }
 
-      const [
-        topCategory,
-        topAmount,
-      ] = categories[0];
+      const [topCategory, topAmount] = categories[0];
 
       return res.json({
         answer: `Your ${topCategory} spending is currently your largest expense at ₹${formatCurrency(
-          topAmount
+          topAmount,
         )}. Reviewing this category first could have the biggest impact on your overall spending.`,
       });
     }
@@ -910,7 +995,7 @@ const askNalvion = async (req, res) => {
 
     return res.json({
       answer:
-        "I can help you understand your income, expenses, savings, biggest spending categories, and unusual transactions. Try asking me something like \"How much did I spend on Shopping?\"",
+        'I can help you understand your income, expenses, savings, biggest spending categories, and unusual transactions. Try asking me something like "How much did I spend on Shopping?"',
     });
   } catch (error) {
     console.error(
